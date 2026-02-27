@@ -1,13 +1,32 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Download, Upload, RefreshCw, Clock } from 'lucide-react';
 import pemkoLogo from '../assets/pemko.png';
 import bpbdLogo from '../assets/bpbd.png';
 import logo112 from '../assets/112.png';
 
+interface ForecastItem {
+  datetime: string;
+  local_datetime?: string;
+  weather: string | number;
+  weather_desc: string;
+  t: number;
+  hu: number;
+  ws: number;
+  wd_to: string;
+  vs_text: string;
+  [key: string]: unknown;
+}
+
+interface WeatherData {
+  data: Array<{
+    cuaca: ForecastItem[][];
+  }>;
+}
+
 const WeatherForecast = () => {
-  const [weatherData, setWeatherData] = useState(null);
+  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [backgroundImage, setBackgroundImage] = useState(null);
+  const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [gridSize, setGridSize] = useState(50);
   const [showGrid, setShowGrid] = useState(true);
   const [logos, setLogos] = useState<(string | null)[]>([pemkoLogo, bpbdLogo, logo112]);
@@ -17,15 +36,11 @@ const WeatherForecast = () => {
   const [startHour, setStartHour] = useState(12);
   const [hourInterval, setHourInterval] = useState(3);
   const [warningText, setWarningText] = useState('DIPERKIRAKAN CUACA BANJARMASIN DAN SEKITARNYA AKAN CERAH BERAWAN');
-  const canvasRef = useRef(null);
-  const fileInputRef = useRef(null);
-  const logoInputRefs = useRef([]);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const logoInputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  useEffect(() => {
-    fetchWeatherData();
-  }, []);
-
-  const fetchWeatherData = async () => {
+  const fetchWeatherData = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch('https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=63.71.05.1001');
@@ -36,21 +51,28 @@ const WeatherForecast = () => {
       console.error('Error fetching weather data:', error);
       setLoading(false);
     }
-  };
+  }, []);
 
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchWeatherData();
+  }, [fetchWeatherData]);
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
-        setBackgroundImage(event.target.result);
+        if (event.target?.result) {
+          setBackgroundImage(event.target.result as string);
+        }
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleLogoUpload = (index, e) => {
-    const file = e.target.files[0];
+  const handleLogoUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -70,15 +92,15 @@ const WeatherForecast = () => {
     }
   };
 
-  const removeLogoSlot = (index) => {
+  const removeLogoSlot = (index: number) => {
     if (index >= 3) {
       const newLogos = logos.filter((_, i) => i !== index);
       setLogos(newLogos);
     }
   };
 
-  const getWeatherIcon = (weatherCode) => {
-    const code = parseInt(weatherCode);
+  const getWeatherIcon = (weatherCode: string | number) => {
+    const code = parseInt(String(weatherCode));
     if (code === 0 || code === 1) return '☀️';
     if (code === 2) return '⛅';
     if (code === 3 || code === 4) return '☁️';
@@ -157,7 +179,7 @@ const WeatherForecast = () => {
     const todayWitaDate = nowWita.getUTCDate();
     const currentWitaHour = nowWita.getUTCHours();
 
-    let result = [];
+    const result = [];
 
     // Loop maksimal 6 kali mengisi data, atau berhenti setelah 24 kali cek
     let iterations = 0;
@@ -188,10 +210,10 @@ const WeatherForecast = () => {
       }
 
       // Cari set data prakiraan yang jam-nya paling mendekati target yang dibuat (interpolation proxy)
-      let closestForecast = null;
+      let closestForecast: ForecastItem | null = null;
       let minDiff = Infinity;
 
-      allForecasts.forEach((f: any) => {
+      allForecasts.forEach((f: ForecastItem) => {
         const fDate = new Date(f.datetime);
         const diff = Math.abs(fDate.getTime() - currentTargetUtc.getTime());
         if (diff < minDiff) {
@@ -200,9 +222,10 @@ const WeatherForecast = () => {
         }
       });
 
-      if (closestForecast) {
+      const found: ForecastItem | null = closestForecast;
+      if (found) {
         result.push({
-          ...closestForecast,
+          ...(found as ForecastItem),
           // Manipulasi original datetime dari API menggunakan jam target buatan kita yang sudah sesuai dengan start dan interval 
           datetime: currentTargetUtc.toISOString(),
           local_datetime: currentTargetUtc.toISOString(), // jaga-jaga apabila dipakai di fungsi lain
@@ -221,6 +244,7 @@ const WeatherForecast = () => {
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     const width = 1080;
     const height = 1348;
 
@@ -231,7 +255,7 @@ const WeatherForecast = () => {
     if (backgroundImage) {
       const img = new Image();
       img.src = backgroundImage;
-      await new Promise((resolve) => {
+      await new Promise<void>((resolve) => {
         img.onload = () => {
           ctx.drawImage(img, 0, 0, width, height);
           resolve();
@@ -302,7 +326,7 @@ const WeatherForecast = () => {
         // Draw uploaded logo with auto-resize
         const logoImg = new Image();
         logoImg.src = logos[i] as string;
-        await new Promise((resolve) => {
+        await new Promise<void>((resolve) => {
           logoImg.onload = () => {
             // Calculate aspect ratio and fit within logoSize
             const aspectRatio = logoImg.width / logoImg.height;
@@ -406,7 +430,7 @@ const WeatherForecast = () => {
       let totalAssigned = 0;
       let currentRow = 0;
       while (totalAssigned < forecasts.length) {
-        let countInRow = Math.min(3, forecasts.length - totalAssigned);
+        const countInRow = Math.min(3, forecasts.length - totalAssigned);
         const rowWidth = countInRow * cardWidth + (countInRow - 1) * gapX;
         const startXRow = (width - rowWidth) / 2;
         for (let col = 0; col < countInRow; col++) {
@@ -864,7 +888,7 @@ const WeatherForecast = () => {
                     </button>
                   )}
                   <input
-                    ref={(el) => logoInputRefs.current[index] = el}
+                    ref={(el) => { logoInputRefs.current[index] = el; }}
                     type="file"
                     accept="image/*"
                     onChange={(e) => handleLogoUpload(index, e)}
