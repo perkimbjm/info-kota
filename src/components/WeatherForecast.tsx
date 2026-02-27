@@ -654,32 +654,32 @@ const WeatherForecast = () => {
     <div className="min-h-screen bg-gradient-to-br from-blue-100 to-blue-200 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
         {/* Header Controls */}
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-800">Generator Prakiraan Cuaca BPBD</h1>
-              <p className="text-gray-600 mt-1">Data real-time dari BMKG API</p>
+        <div className="bg-white rounded-xl shadow-lg p-4 md:p-6 mb-4 md:mb-6">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="text-center md:text-left w-full md:w-auto">
+              <h1 className="text-xl md:text-3xl font-bold text-gray-800">Generator Prakiraan Cuaca BPBD</h1>
+              <p className="text-gray-600 mt-1 text-sm md:text-base">Data real-time dari BMKG API</p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap w-full md:w-auto justify-center gap-2 sm:gap-3">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors"
+                className="flex-1 sm:flex-none flex justify-center items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
               >
-                <Upload className="w-5 h-5" />
-                Upload Gambar
+                <Upload className="w-4 h-4 sm:w-5 sm:h-5" />
+                Upload
               </button>
               <button
                 onClick={fetchWeatherData}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                className="flex-1 sm:flex-none flex justify-center items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
               >
-                <RefreshCw className="w-5 h-5" />
-                Refresh Data
+                <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
+                Refresh
               </button>
               <button
                 onClick={downloadImage}
-                className="flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+                className="w-full sm:w-auto sm:flex-none flex justify-center items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
               >
-                <Download className="w-5 h-5" />
+                <Download className="w-4 h-4 sm:w-5 sm:h-5" />
                 Download
               </button>
             </div>
@@ -852,7 +852,7 @@ const WeatherForecast = () => {
                 + Tambah Logo
               </button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
               {logos.map((logo, index) => (
                 <div key={index} className="relative">
                   <div
@@ -921,35 +921,38 @@ const WeatherForecast = () => {
         </div>
 
         {/* Preview */}
-        <div
-          className="relative rounded-xl shadow-2xl overflow-hidden max-w-2xl mx-auto z-0"
-          style={{
-            backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'linear-gradient(to bottom, #87CEEB, #98D8E8)',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center'
-          }}
-        >
-          {/* Blur overlay */}
-          <div className="absolute inset-0 backdrop-blur-sm bg-white/10 z-0"></div>
+        <div className="w-full overflow-x-auto pb-6">
+          <div
+            className="relative rounded-xl shadow-2xl overflow-hidden mx-auto z-0"
+            style={{
+              minWidth: '672px',
+              maxWidth: '672px',
+              backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'linear-gradient(to bottom, #87CEEB, #98D8E8)',
+              backgroundSize: 'cover',
+              backgroundPosition: 'center'
+            }}
+          >
+            {/* Blur overlay */}
+            <div className="absolute inset-0 backdrop-blur-sm bg-white/10 z-0"></div>
 
-          {/* Gradient overlay */}
-          {backgroundImage && gradientEnabled && (
-            <div
-              className="absolute inset-0 pointer-events-none z-10"
-              style={{
-                pointerEvents: 'none',
-                background: `linear-gradient(to bottom, ${gradientColor}${Math.round(gradientOpacity * 2.55).toString(16).padStart(2, '0')}, transparent)`
-              }}
-            />
-          )}
+            {/* Gradient overlay */}
+            {backgroundImage && gradientEnabled && (
+              <div
+                className="absolute inset-0 pointer-events-none z-10"
+                style={{
+                  pointerEvents: 'none',
+                  background: `linear-gradient(to bottom, ${gradientColor}${Math.round(gradientOpacity * 2.55).toString(16).padStart(2, '0')}, transparent)`
+                }}
+              />
+            )}
 
-          {/* Grid overlay */}
-          {backgroundImage && showGrid && (
-            <div
-              className="absolute inset-0 pointer-events-none z-10"
-              style={{
-                pointerEvents: 'none',
-                backgroundImage: `
+            {/* Grid overlay */}
+            {backgroundImage && showGrid && (
+              <div
+                className="absolute inset-0 pointer-events-none z-10"
+                style={{
+                  pointerEvents: 'none',
+                  backgroundImage: `
           repeating-linear-gradient(
           0deg,
           transparent,
@@ -965,161 +968,162 @@ const WeatherForecast = () => {
           rgba(150, 150, 150, 0.3) ${gridSize}px
           )
           `,
-                backgroundSize: `${gridSize}px ${gridSize}px`
-              }}
-            >
-              <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
-                <defs>
-                  <pattern id="grid" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse">
-                    <path
-                      d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`}
-                      fill="none"
-                      stroke="rgba(150, 150, 150, 0.3)"
-                      strokeWidth="1"
-                      strokeDasharray="10, 10"
-                    />
-                  </pattern>
-                </defs>
-                <rect width="100%" height="100%" fill="url(#grid)" />
-              </svg>
-            </div>
-          )}
-
-          <div className="relative p-8 z-20">
-            {/* Header Section */}
-            <div className="text-center mb-6">
-              {/* Logo placeholders */}
-              <div className="flex justify-center gap-4 mb-6">
-                {logos.map((logo, index) => (
-                  <div key={index} className="relative w-16 h-16 flex items-center justify-center">
-                    {logo ? (
-                      <img
-                        src={logo}
-                        alt={`Logo ${index + 1}`}
-                        className="max-w-full max-h-full object-contain shadow-lg"
+                  backgroundSize: `${gridSize}px ${gridSize}px`
+                }}
+              >
+                <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
+                  <defs>
+                    <pattern id="grid" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse">
+                      <path
+                        d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`}
+                        fill="none"
+                        stroke="rgba(150, 150, 150, 0.3)"
+                        strokeWidth="1"
+                        strokeDasharray="10, 10"
                       />
-                    ) : (
-                      <div className={`w-16 h-16 rounded-full shadow-lg ${index === 0 ? 'bg-yellow-400' :
-                        index === 1 ? 'bg-orange-500' :
-                          index === 2 ? 'bg-blue-600' :
-                            index === 3 ? 'bg-green-500' :
-                              index === 4 ? 'bg-pink-500' :
-                                'bg-cyan-500'
-                        }`}></div>
-                    )}
+                    </pattern>
+                  </defs>
+                  <rect width="100%" height="100%" fill="url(#grid)" />
+                </svg>
+              </div>
+            )}
+
+            <div className="relative p-8 z-20">
+              {/* Header Section */}
+              <div className="text-center mb-6">
+                {/* Logo placeholders */}
+                <div className="flex justify-center gap-4 mb-6">
+                  {logos.map((logo, index) => (
+                    <div key={index} className="relative w-16 h-16 flex items-center justify-center">
+                      {logo ? (
+                        <img
+                          src={logo}
+                          alt={`Logo ${index + 1}`}
+                          className="max-w-full max-h-full object-contain shadow-lg"
+                        />
+                      ) : (
+                        <div className={`w-16 h-16 rounded-full shadow-lg ${index === 0 ? 'bg-yellow-400' :
+                          index === 1 ? 'bg-orange-500' :
+                            index === 2 ? 'bg-blue-600' :
+                              index === 3 ? 'bg-green-500' :
+                                index === 4 ? 'bg-pink-500' :
+                                  'bg-cyan-500'
+                          }`}></div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <h2 className="text-sm font-bold text-gray-800 mb-1">BADAN PENANGGULANGAN BENCANA DAERAH</h2>
+                <h2 className="text-sm font-bold text-gray-800 mb-4">KOTA BANJARMASIN</h2>
+
+                <h1 className="text-5xl font-black text-gray-900 mb-2">PRAKIRAAN CUACA</h1>
+                <p className="text-base font-semibold text-gray-800">KOTA BANJARMASIN, {formatDateIndonesian(firstForecastDate)}</p>
+              </div>
+
+              {/* Weather Cards Grid */}
+              <div className="flex flex-col gap-3 mb-6 items-center w-full">
+                {(forecasts.length === 4
+                  ? [forecasts.slice(0, 2), forecasts.slice(2, 4)]
+                  : forecasts.length === 5
+                    ? [forecasts.slice(0, 3), forecasts.slice(3, 5)]
+                    : forecasts.length === 6
+                      ? [forecasts.slice(0, 3), forecasts.slice(3, 6)]
+                      : [forecasts]
+                ).map((row, rowIndex) => (
+                  <div key={rowIndex} className="flex justify-center gap-3 w-full">
+                    {row.map((forecast, index) => (
+                      <div
+                        key={`${rowIndex}-${index}`}
+                        className="bg-white/85 backdrop-blur-sm rounded-2xl p-4 shadow-lg flex-shrink-0"
+                        style={{ width: 'calc(33.333% - 8px)', minWidth: '150px' }}
+                      >
+                        <div className="text-center">
+                          <p className="font-bold text-gray-800 text-xs mb-2">{formatTime(forecast.datetime)} WITA</p>
+                          <div className="text-5xl mb-2">{getWeatherIcon(forecast.weather)}</div>
+                          <p className="text-3xl font-bold text-gray-900">{forecast.t}°C</p>
+                          <p className="text-xs text-gray-700 mb-3">{forecast.weather_desc}</p>
+
+                          <div className="space-y-1 text-xs text-gray-600">
+                            <div className="flex items-center justify-between px-2">
+                              <span>💧 {forecast.hu}%</span>
+                              <span>💨 {Math.round(forecast.ws)} km/jam</span>
+                            </div>
+                            <div className="flex items-center justify-between px-2">
+                              <span>🧭 {translateWindDirection(forecast.wd_to)}</span>
+                              <span>👁️ {forecast.vs_text}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 ))}
               </div>
 
-              <h2 className="text-sm font-bold text-gray-800 mb-1">BADAN PENANGGULANGAN BENCANA DAERAH</h2>
-              <h2 className="text-sm font-bold text-gray-800 mb-4">KOTA BANJARMASIN</h2>
-
-              <h1 className="text-5xl font-black text-gray-900 mb-2">PRAKIRAAN CUACA</h1>
-              <p className="text-base font-semibold text-gray-800">KOTA BANJARMASIN, {formatDateIndonesian(firstForecastDate)}</p>
-            </div>
-
-            {/* Weather Cards Grid */}
-            <div className="flex flex-col gap-3 mb-6 items-center w-full">
-              {(forecasts.length === 4
-                ? [forecasts.slice(0, 2), forecasts.slice(2, 4)]
-                : forecasts.length === 5
-                  ? [forecasts.slice(0, 3), forecasts.slice(3, 5)]
-                  : forecasts.length === 6
-                    ? [forecasts.slice(0, 3), forecasts.slice(3, 6)]
-                    : [forecasts]
-              ).map((row, rowIndex) => (
-                <div key={rowIndex} className="flex justify-center gap-3 w-full">
-                  {row.map((forecast, index) => (
-                    <div
-                      key={`${rowIndex}-${index}`}
-                      className="bg-white/85 backdrop-blur-sm rounded-2xl p-4 shadow-lg flex-shrink-0"
-                      style={{ width: 'calc(33.333% - 8px)', minWidth: '150px' }}
-                    >
-                      <div className="text-center">
-                        <p className="font-bold text-gray-800 text-xs mb-2">{formatTime(forecast.datetime)} WITA</p>
-                        <div className="text-5xl mb-2">{getWeatherIcon(forecast.weather)}</div>
-                        <p className="text-3xl font-bold text-gray-900">{forecast.t}°C</p>
-                        <p className="text-xs text-gray-700 mb-3">{forecast.weather_desc}</p>
-
-                        <div className="space-y-1 text-xs text-gray-600">
-                          <div className="flex items-center justify-between px-2">
-                            <span>💧 {forecast.hu}%</span>
-                            <span>💨 {Math.round(forecast.ws)} km/jam</span>
-                          </div>
-                          <div className="flex items-center justify-between px-2">
-                            <span>🧭 {translateWindDirection(forecast.wd_to)}</span>
-                            <span>👁️ {forecast.vs_text}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-
-            {/* Warning Section */}
-            <div className="text-center mb-6 px-4">
-              <h3 className="text-white font-bold text-lg mb-2 drop-shadow-lg">PERINGATAN :</h3>
-              <p className="text-white text-sm mb-3 drop-shadow-lg whitespace-pre-wrap break-words px-2 mx-auto max-w-full">
-                {warningText}
-              </p>
-              <div className="bg-yellow-400 rounded-lg p-4 shadow-lg w-full max-w-[95%] mx-auto">
-                <p className="text-gray-900 font-bold text-sm leading-relaxed">
-                  HIMBAUAN AGAR TETAP WASPADA KETIKA BERAKTIVITAS DI LUAR RUANGAN<br />
-                  DAN SELALU PANTAU PERKEMBANGAN CUACA TERKINI !
+              {/* Warning Section */}
+              <div className="text-center mb-6 px-4">
+                <h3 className="text-white font-bold text-lg mb-2 drop-shadow-lg">PERINGATAN :</h3>
+                <p className="text-white text-sm mb-3 drop-shadow-lg whitespace-pre-wrap break-words px-2 mx-auto max-w-full">
+                  {warningText}
                 </p>
+                <div className="bg-yellow-400 rounded-lg p-4 shadow-lg w-full max-w-[95%] mx-auto">
+                  <p className="text-gray-900 font-bold text-sm leading-relaxed">
+                    HIMBAUAN AGAR TETAP WASPADA KETIKA BERAKTIVITAS DI LUAR RUANGAN<br />
+                    DAN SELALU PANTAU PERKEMBANGAN CUACA TERKINI !
+                  </p>
+                </div>
               </div>
-            </div>
 
-            {/* Footer */}
-            <div className="bg-gray-700 rounded-lg p-2">
-              <div className="flex items-center justify-between text-xs text-white">
-                {/* Instagram */}
-                <div className="flex items-center gap-1.5">
-                  <div className="w-5 h-5 border-2 border-white rounded-md flex items-center justify-center">
-                    <div className="w-2.5 h-2.5 border-2 border-white rounded-full"></div>
+              {/* Footer */}
+              <div className="bg-gray-700 rounded-lg p-2">
+                <div className="flex items-center justify-between text-xs text-white">
+                  {/* Instagram */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 border-2 border-white rounded-md flex items-center justify-center">
+                      <div className="w-2.5 h-2.5 border-2 border-white rounded-full"></div>
+                    </div>
+                    <span className="text-xs">bpbd_kota_banjarmasin</span>
                   </div>
-                  <span className="text-xs">bpbd_kota_banjarmasin</span>
-                </div>
 
-                {/* Facebook */}
-                <div className="flex items-center gap-1.5">
-                  <div className="w-5 h-5 border-2 border-white rounded-full flex items-center justify-center">
-                    <span className="font-bold text-xs">f</span>
+                  {/* Facebook */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 border-2 border-white rounded-full flex items-center justify-center">
+                      <span className="font-bold text-xs">f</span>
+                    </div>
+                    <span className="text-xs">bpbd banjarmasin</span>
                   </div>
-                  <span className="text-xs">bpbd banjarmasin</span>
-                </div>
 
-                {/* Phone */}
-                <div className="flex items-center gap-1.5">
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <div className="w-3 h-5 border-2 border-white rounded"></div>
+                  {/* Phone */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 flex items-center justify-center">
+                      <div className="w-3 h-5 border-2 border-white rounded"></div>
+                    </div>
+                    <span className="text-xs">0851-8889-1117</span>
                   </div>
-                  <span className="text-xs">0851-8889-1117</span>
-                </div>
 
-                {/* Email */}
-                <div className="flex items-center gap-1.5">
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <svg width="18" height="13" viewBox="0 0 18 13" fill="none" className="stroke-white stroke-2">
-                      <rect x="1" y="1" width="16" height="11" />
-                      <path d="M1 1 L9 7 L17 1" />
-                    </svg>
+                  {/* Email */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 flex items-center justify-center">
+                      <svg width="18" height="13" viewBox="0 0 18 13" fill="none" className="stroke-white stroke-2">
+                        <rect x="1" y="1" width="16" height="11" />
+                        <path d="M1 1 L9 7 L17 1" />
+                      </svg>
+                    </div>
+                    <span className="text-xs">bpbdk.bjm3@gmail.com</span>
                   </div>
-                  <span className="text-xs">bpbdk.bjm3@gmail.com</span>
-                </div>
 
-                {/* Website */}
-                <div className="flex items-center gap-1.5">
-                  <div className="w-5 h-5 flex items-center justify-center">
-                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="stroke-white stroke-2">
-                      <circle cx="9" cy="9" r="7" />
-                      <ellipse cx="9" cy="9" rx="2.5" ry="7" />
-                      <line x1="2" y1="9" x2="16" y2="9" />
-                    </svg>
+                  {/* Website */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-5 h-5 flex items-center justify-center">
+                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="stroke-white stroke-2">
+                        <circle cx="9" cy="9" r="7" />
+                        <ellipse cx="9" cy="9" rx="2.5" ry="7" />
+                        <line x1="2" y1="9" x2="16" y2="9" />
+                      </svg>
+                    </div>
+                    <span className="text-xs">www.bpbdbanjarmasin.kota.co.id</span>
                   </div>
-                  <span className="text-xs">www.bpbdbanjarmasin.kota.co.id</span>
                 </div>
               </div>
             </div>
