@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Download, Upload, RefreshCw, Clock } from 'lucide-react';
 import pemkoLogo from '../assets/pemko.png';
+import yaLogo from '../assets/maju-sejahtera.png';
 import bpbdLogo from '../assets/bpbd.png';
 import logo112 from '../assets/112.png';
 
@@ -29,7 +30,7 @@ const WeatherForecast = () => {
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [gridSize, setGridSize] = useState(50);
   const [showGrid, setShowGrid] = useState(true);
-  const [logos, setLogos] = useState<(string | null)[]>([pemkoLogo, bpbdLogo, logo112]);
+  const [logos, setLogos] = useState<(string | null)[]>([pemkoLogo, yaLogo, bpbdLogo, logo112]);
   const [gradientEnabled, setGradientEnabled] = useState(false);
   const [gradientColor, setGradientColor] = useState('#000000');
   const [gradientOpacity, setGradientOpacity] = useState(50);
@@ -576,15 +577,15 @@ const WeatherForecast = () => {
     ctx.stroke();
     ctx.fillText('bpbd_kota_banjarmasin', xPos + iconSize + 8, footerItemY);
 
-    // Facebook icon (f in circle)
-    xPos += spacing;
-    ctx.beginPath();
-    ctx.arc(xPos + iconSize / 2, footerItemY - 6, iconSize / 2, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.font = 'bold 14px Arial';
-    ctx.fillText('f', xPos + iconSize / 2 - 3, footerItemY - 1);
-    ctx.font = '13px Arial';
-    ctx.fillText('bpbd banjarmasin', xPos + iconSize + 8, footerItemY);
+    // // Facebook icon (f in circle)
+    // xPos += spacing;
+    // ctx.beginPath();
+    // ctx.arc(xPos + iconSize / 2, footerItemY - 6, iconSize / 2, 0, Math.PI * 2);
+    // ctx.stroke();
+    // ctx.font = 'bold 14px Arial';
+    // ctx.fillText('f', xPos + iconSize / 2 - 3, footerItemY - 1);
+    // ctx.font = '13px Arial';
+    // ctx.fillText('bpbd banjarmasin', xPos + iconSize + 8, footerItemY);
 
     // Phone icon
     xPos += spacing;
@@ -627,7 +628,7 @@ const WeatherForecast = () => {
     ctx.moveTo(xPos, footerItemY - 6);
     ctx.lineTo(xPos + 20, footerItemY - 6);
     ctx.stroke();
-    ctx.fillText('www.bpbdbanjarmasin.kota.co.id', xPos + 26, footerItemY);
+    ctx.fillText('bpbd.banjarmasinkota.go.id', xPos + 26, footerItemY);
 
     // Download
     const link = document.createElement('a');
@@ -661,6 +662,15 @@ const WeatherForecast = () => {
               <p className="text-gray-600 mt-1 text-sm md:text-base">Data real-time dari BMKG API</p>
             </div>
             <div className="flex flex-wrap w-full md:w-auto justify-center gap-2 sm:gap-3">
+              <button
+                onClick={() => {
+                  window.history.pushState({}, '', '/udara');
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }}
+                className="flex-1 sm:flex-none flex justify-center items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
+              >
+                Kualitas Udara (ISPU) →
+              </button>
               <button
                 onClick={() => fileInputRef.current?.click()}
                 className="flex-1 sm:flex-none flex justify-center items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
@@ -1087,19 +1097,19 @@ const WeatherForecast = () => {
                   </div>
 
                   {/* Facebook */}
-                  <div className="flex items-center gap-1.5">
+                  {/* <div className="flex items-center gap-1.5">
                     <div className="w-5 h-5 border-2 border-white rounded-full flex items-center justify-center">
                       <span className="font-bold text-xs">f</span>
                     </div>
                     <span className="text-xs">bpbd banjarmasin</span>
-                  </div>
+                  </div> */}
 
                   {/* Phone */}
                   <div className="flex items-center gap-1.5">
                     <div className="w-5 h-5 flex items-center justify-center">
                       <div className="w-3 h-5 border-2 border-white rounded"></div>
                     </div>
-                    <span className="text-xs">0851-8889-1117</span>
+                    <span className="text-xs">085188891117</span>
                   </div>
 
                   {/* Email */}
@@ -1122,7 +1132,7 @@ const WeatherForecast = () => {
                         <line x1="2" y1="9" x2="16" y2="9" />
                       </svg>
                     </div>
-                    <span className="text-xs">www.bpbdbanjarmasin.kota.co.id</span>
+                    <span className="text-xs">bpbd.banjarmasinkota.go.id</span>
                   </div>
                 </div>
               </div>
