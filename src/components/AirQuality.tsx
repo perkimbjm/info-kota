@@ -343,10 +343,15 @@ const AirQuality = () => {
               </button>
               <button
                 onClick={downloadImage}
-                className="w-full sm:w-auto sm:flex-none flex justify-center items-center gap-1.5 px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
+                disabled={isDownloading}
+                className="w-full sm:w-auto sm:flex-none flex justify-center items-center gap-1.5 px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-wait text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
               >
-                <Download className="w-4 h-4" />
-                Download Gambar
+                {isDownloading ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                {isDownloading ? 'Mengunduh...' : 'Download Gambar'}
               </button>
             </div>
           </div>
@@ -635,7 +640,7 @@ const AirQuality = () => {
           />
         </div>
 
-         {/* Scaled Preview: 672px width and 838px height (scales 1080x1348px layout exactly by 0.62) */}
+        {/* Scaled Preview: 672px width and 838px height (scales 1080x1348px layout exactly by 0.62) */}
         <div className="w-full overflow-x-auto pb-8">
           <div
             ref={previewRef}
