@@ -212,10 +212,14 @@ const AirQuality = () => {
       const dataUrl = await toPng(previewRef.current, {
         pixelRatio,
         cacheBust: true,
+        width: 672,
+        height: 838,
         style: {
           borderRadius: '0',
           border: 'none',
           boxShadow: 'none',
+          margin: '0',
+          transform: 'none',
         },
       });
       const link = document.createElement('a');
@@ -631,9 +635,10 @@ const AirQuality = () => {
           />
         </div>
 
-        {/* Scaled Preview: 672px width and 838px height (scales 1080x1348px layout exactly by 0.62) */}
+         {/* Scaled Preview: 672px width and 838px height (scales 1080x1348px layout exactly by 0.62) */}
         <div className="w-full overflow-x-auto pb-8">
           <div
+            ref={previewRef}
             className="relative rounded-xl shadow-2xl overflow-hidden mx-auto border border-gray-300"
             style={{
               minWidth: '672px',
