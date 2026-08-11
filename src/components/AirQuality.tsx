@@ -722,7 +722,7 @@ const AirQuality = () => {
                     <div className="min-w-0">
                       <p className="text-[10px] font-black text-slate-900 leading-none">Stasiun Kayu Tangi</p>
                       <p className="text-[8px] text-slate-500 leading-normal mt-0.5 truncate">Kantor Dinas PUPR</p>
-                      <p className="text-[7.5px] text-slate-400 leading-none truncate">Jl. KH. Hasan Basri, BJM</p>
+                      <p className="text-[7.5px] text-slate-400 leading-none truncate">Jl. Brigjen Hasan Basri, Banjarmasin</p>
                     </div>
                   </div>
 
@@ -1004,7 +1004,7 @@ const AirQuality = () => {
                     <span>🌐  bpbd.banjarmasinkota.go.id</span>
                     <span>📸  bpbd_kota_banjarmasin</span>
                     <span>📩  bpbdk.bjm3@gmail.com</span>
-                    <span>📞  0851-8889-1117</span>
+                    <span>📞  0851-8689-1117</span>
                   </div>
                 </div>
               </div>

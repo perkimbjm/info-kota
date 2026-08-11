@@ -600,7 +600,7 @@ const WeatherForecast = () => {
     ctx.beginPath();
     ctx.roundRect(xPos + 1, footerItemY - 16, 10, 20, 2);
     ctx.stroke();
-    ctx.fillText('0851-8889-1117', xPos + iconSize + 3, footerItemY);
+    ctx.fillText('0851-8689-1117', xPos + iconSize + 3, footerItemY);
 
     // Email icon (envelope)
     xPos += spacing - 10;
@@ -1109,7 +1109,7 @@ const WeatherForecast = () => {
                     <div className="w-5 h-5 flex items-center justify-center">
                       <div className="w-3 h-5 border-2 border-white rounded"></div>
                     </div>
-                    <span className="text-xs">085188891117</span>
+                    <span className="text-xs">085186891117</span>
                   </div>
 
                   {/* Email */}
