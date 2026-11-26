@@ -672,6 +672,15 @@ const WeatherForecast = () => {
                 Kualitas Udara (ISPU) →
               </button>
               <button
+                onClick={() => {
+                  window.history.pushState({}, '', '/rob');
+                  window.dispatchEvent(new PopStateEvent('popstate'));
+                }}
+                className="flex-1 sm:flex-none flex justify-center items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
+              >
+                Pasang / Air Rob →
+              </button>
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 className="flex-1 sm:flex-none flex justify-center items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
               >

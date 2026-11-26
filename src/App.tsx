@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import WeatherForecast from "./components/WeatherForecast";
 import AirQuality from "./components/AirQuality";
+import TidalFlood from "./components/TidalFlood";
 
 function App() {
   const [currentPath, setCurrentPath] = useState(window.location.pathname);
@@ -31,6 +32,10 @@ function App() {
       window.history.replaceState = originalReplaceState;
     };
   }, []);
+
+  if (currentPath === '/rob') {
+    return <TidalFlood />;
+  }
 
   if (currentPath === '/udara') {
     return <AirQuality />;
