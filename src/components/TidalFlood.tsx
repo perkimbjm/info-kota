@@ -3,6 +3,11 @@ import {
   Download, Upload, RefreshCw, Plus, Trash2, CalendarDays, Clock, Info, House, Wind,
   TriangleAlert, Phone, Globe, Mail, Facebook, Instagram, Waves, FileInput,
 } from 'lucide-react';
+import {
+  DEFAULT_OVERLAY, makeLogos, readFileAsDataUrl, useTextFields,
+  type LogoItem, type OverlaySettings, type TextDef,
+} from '../lib/customize';
+import { LogoManager, OverlayEditor, OverlayLayer, Section, TextFieldsEditor } from './shared/Customize';
 import { toPng } from 'html-to-image';
 import pemkoLogo from '../assets/pemko.png';
 import majuLogo from '../assets/maju-sejahtera.png';
@@ -153,48 +158,88 @@ const WaveLine = ({ width = 150, color = '#3b82f6' }: { width?: number; color?: 
 );
 
 // ---------------------------------------------------------------------------
+// Definisi teks yang bisa diedit (isi, warna, ukuran)
+// ---------------------------------------------------------------------------
+const NAVY = '#0b1f4d';
+const ORANGE = '#f97316';
+
+const TEXT_DEFS: TextDef[] = [
+  { key: 'org1', group: 'Header', label: 'Nama instansi baris 1', text: 'BADAN PENANGGULANGAN BENCANA DAERAH', color: NAVY, size: 16 },
+  { key: 'org2', group: 'Header', label: 'Nama instansi baris 2', text: 'KOTA BANJARMASIN', color: NAVY, size: 16 },
+  { key: 'badge1', group: 'Header', label: 'Badge teks baris 1', text: 'CITY OF A', color: '#f87171', size: 10 },
+  { key: 'badge2', group: 'Header', label: 'Badge teks baris 2', text: 'THOUSAND RIVERS', color: '#e0f2fe', size: 15 },
+
+  { key: 'pill', group: 'Judul', label: 'Label pil', text: 'JADWAL PERKIRAAN', color: '#ffffff', size: 21 },
+  { key: 'title1', group: 'Judul', label: 'Judul baris 1', text: 'PASANG SURUT', color: NAVY, size: 60 },
+  { key: 'title2', group: 'Judul', label: 'Judul baris 2', text: 'AIR ROB', color: ORANGE, size: 74 },
+  { key: 'period', group: 'Judul', label: 'Periode tanggal (isi diatur di Data Pasang)', color: NAVY, size: 22 },
+  { key: 'cardTitle', group: 'Judul', label: 'Kartu info: judul', text: 'AIR ROB', color: '#1d4ed8', size: 20 },
+  { key: 'cardDesc', group: 'Judul', label: 'Kartu info: deskripsi', text: 'Fenomena naiknya permukaan air laut yang dapat memengaruhi wilayah pesisir dan sungai.', multiline: true, color: '#1e293b', size: 12.5 },
+
+  { key: 'th1', group: 'Tabel', label: 'Kepala kolom 1', text: 'TANGGAL', color: '#ffffff', size: 15 },
+  { key: 'th2', group: 'Tabel', label: 'Kepala kolom 2', text: 'JAM PUNCAK', color: '#ffffff', size: 15 },
+  { key: 'th3', group: 'Tabel', label: 'Kepala kolom 3', text: 'KETINGGIAN MAKS', color: '#ffffff', size: 15 },
+  { key: 'rDay', group: 'Tabel', label: 'Nama hari', color: NAVY, size: 12 },
+  { key: 'rDate', group: 'Tabel', label: 'Angka tanggal', color: NAVY, size: 34 },
+  { key: 'rMonth', group: 'Tabel', label: 'Nama bulan', color: NAVY, size: 12 },
+  { key: 'rTime', group: 'Tabel', label: 'Jam puncak', color: NAVY, size: 24 },
+  { key: 'rZone', group: 'Tabel', label: 'Zona waktu', text: 'WITA', color: NAVY, size: 15 },
+  { key: 'rHeight', group: 'Tabel', label: 'Angka ketinggian', color: ORANGE, size: 44 },
+  { key: 'rUnit', group: 'Tabel', label: 'Satuan', text: 'METER', color: ORANGE, size: 15 },
+  { key: 'rRef', group: 'Tabel', label: 'Keterangan acuan', text: 'TITIK TERENDAH (LAT)', color: NAVY, size: 7 },
+
+  { key: 'noteTitle', group: 'Catatan', label: 'Judul catatan', text: 'CATATAN PENTING', color: '#1d4ed8', size: 14 },
+  { key: 'note1', group: 'Catatan', label: 'Catatan 1', text: 'Perkiraan ini menunjukkan pasang tertinggi yang biasanya terjadi sore hingga malam.', multiline: true, color: '#1e293b', size: 9.5 },
+  { key: 'note2', group: 'Catatan', label: 'Catatan 2', text: 'Ketinggian diukur dari titik surut terendah (LAT) Muara Sungai Barito.', multiline: true, color: '#1e293b', size: 9.5 },
+  { key: 'note3', group: 'Catatan', label: 'Catatan 3', text: 'Saat pasang purnama dan kondisi cuaca buruk (angin, hujan, tekanan udara rendah), air bisa naik lebih tinggi dari angka ini.', multiline: true, color: '#1e293b', size: 9.5 },
+
+  { key: 'fTitle1', group: 'Footer & Kontak', label: 'Layanan baris 1', text: 'Layanan Darurat Bencana', color: '#ffffff', size: 11 },
+  { key: 'fTitle2', group: 'Footer & Kontak', label: 'Layanan baris 2', text: 'Kota Banjarmasin', color: '#ffffff', size: 11 },
+  { key: 'fCcLabel', group: 'Footer & Kontak', label: 'Label call center', text: 'Call Center Pusdalops-PB:', color: '#ffffff', size: 9 },
+  { key: 'fCc', group: 'Footer & Kontak', label: 'Nomor call center', text: '+62851-8689-1117', color: '#fcd34d', size: 13 },
+  { key: 'f112', group: 'Footer & Kontak', label: 'Nomor darurat', text: '112', color: '#dc2626', size: 30 },
+  { key: 'f112Sub', group: 'Footer & Kontak', label: 'Label nomor darurat', text: 'BANJARMASIN SIAGA', color: '#1e40af', size: 7 },
+  { key: 'f112Note', group: 'Footer & Kontak', label: 'Keterangan nomor darurat', text: 'Gratis, Bebas Pulsa, 24 Jam', color: '#ffffff', size: 9 },
+  { key: 'fInfoTitle', group: 'Footer & Kontak', label: 'Judul info', text: 'PANTAU INFORMASI TERKINI', color: '#ffffff', size: 11 },
+  { key: 'fInfo1', group: 'Footer & Kontak', label: 'Info baris 1', text: 'bpbd.banjarmasinkota.go.id', color: '#ffffff', size: 10 },
+  { key: 'fInfo2', group: 'Footer & Kontak', label: 'Info baris 2', text: '@bpbd_kota_banjarmasin', color: '#ffffff', size: 10 },
+  { key: 'strip', group: 'Footer & Kontak', label: 'Baris kontak bawah (warna & ukuran semua item)', color: '#ffffff', size: 8.5 },
+  { key: 'sFb', group: 'Footer & Kontak', label: 'Facebook', text: 'bpbd.kota.banjarmasin' },
+  { key: 'sIg', group: 'Footer & Kontak', label: 'Instagram', text: 'bpbd.banjarmasin' },
+  { key: 'sPhone', group: 'Footer & Kontak', label: 'Telepon/WA', text: '0853-4608-9588' },
+  { key: 'sMail', group: 'Footer & Kontak', label: 'Email', text: 'bpbd.banjarmasin@gmail.com' },
+  { key: 'sWeb', group: 'Footer & Kontak', label: 'Website', text: 'www.bpbd.banjarmasinkota.go.id' },
+];
+
+// ---------------------------------------------------------------------------
 // Komponen
 // ---------------------------------------------------------------------------
 const PREVIEW_W = 720;
 const PREVIEW_H = 960;
 const OUTPUT_W = 1080; // 1080 x 1440 (3:4)
+const DEFAULT_LOGOS = [bpbdLogo, majuLogo, logo500, pemkoLogo];
 
 const TidalFlood = () => {
   const [rows, setRows] = useState<TideRow[]>(makeDummyRows);
   const [isDummy, setIsDummy] = useState(true);
   const [periodOverride, setPeriodOverride] = useState('');
+  const tf = useTextFields(TEXT_DEFS);
+  const { t, s } = tf;
 
-  const [orgLine1, setOrgLine1] = useState('BADAN PENANGGULANGAN BENCANA DAERAH');
-  const [orgLine2, setOrgLine2] = useState('KOTA BANJARMASIN');
-  const [description, setDescription] = useState(
-    'Fenomena naiknya permukaan air laut yang dapat memengaruhi wilayah pesisir dan sungai.'
-  );
-  const [notes, setNotes] = useState([
-    'Perkiraan ini menunjukkan pasang tertinggi yang biasanya terjadi sore hingga malam.',
-    'Ketinggian diukur dari titik surut terendah (LAT) Muara Sungai Barito.',
-    'Saat pasang purnama dan kondisi cuaca buruk (angin, hujan, tekanan udara rendah), air bisa naik lebih tinggi dari angka ini.',
-  ]);
-  const [contact, setContact] = useState({
-    callCenter: '+62851-8689-1117',
-    website: 'bpbd.banjarmasinkota.go.id',
-    instagram: '@bpbd_kota_banjarmasin',
-    facebook: 'bpbd.kota.banjarmasin',
-    igShort: 'bpbd.banjarmasin',
-    phone: '0853-4608-9588',
-    email: 'bpbd.banjarmasin@gmail.com',
-    web2: 'www.bpbd.banjarmasinkota.go.id',
-  });
-
-  const [logos, setLogos] = useState<(string | null)[]>([bpbdLogo, majuLogo, logo500, pemkoLogo]);
+  const [logos, setLogos] = useState<LogoItem[]>(() => makeLogos(DEFAULT_LOGOS));
+  const [logoSize, setLogoSize] = useState(54);
+  const [showBadge, setShowBadge] = useState(true);
+  const [badgePos, setBadgePos] = useState(1);
+  const [footerLogo, setFooterLogo] = useState<string | null>(bpbdLogo);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
-  const [bgFade, setBgFade] = useState(70);
+  const [overlay, setOverlay] = useState<OverlaySettings>({ ...DEFAULT_OVERLAY, angle: 90, color1: '#ffffff', opacity1: 70, color2: '#ffffff', opacity2: 20 });
   const [bulkText, setBulkText] = useState('');
   const [bulkMsg, setBulkMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
   const previewRef = useRef<HTMLDivElement>(null);
   const bgInputRef = useRef<HTMLInputElement>(null);
-  const logoInputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const footerLogoRef = useRef<HTMLInputElement>(null);
 
   const sortedRows = useMemo(
     () => [...rows].sort((a, b) => a.date.localeCompare(b.date) || a.start.localeCompare(b.start)),
@@ -203,12 +248,6 @@ const TidalFlood = () => {
   const periodLabel = periodOverride.trim() || buildPeriodLabel(sortedRows);
 
   // ---- handlers ----
-  const readFile = (file: File, cb: (url: string) => void) => {
-    const reader = new FileReader();
-    reader.onload = (ev) => ev.target?.result && cb(ev.target.result as string);
-    reader.readAsDataURL(file);
-  };
-
   const updateRow = (id: string, patch: Partial<TideRow>) => {
     setRows((rs) => rs.map((r) => (r.id === id ? { ...r, ...patch } : r)));
     setIsDummy(false);
@@ -252,6 +291,12 @@ const TidalFlood = () => {
     setBulkMsg(null);
   };
 
+  const onBackground = async (file?: File) => {
+    if (!file) return;
+    setBackgroundImage(await readFileAsDataUrl(file));
+    setOverlay((o) => ({ ...o, enabled: true }));
+  };
+
   const downloadImage = async () => {
     if (!previewRef.current) return;
     setIsDownloading(true);
@@ -284,6 +329,12 @@ const TidalFlood = () => {
   const n = sortedRows.length;
   const rowH = Math.min(80, Math.floor((306 - (n - 1) * 4) / n)); // tinggi area baris 306px
   const big = rowH >= 62;
+
+  // item header (logo + badge teks opsional)
+  type HeaderItem = { kind: 'logo'; logo: LogoItem } | { kind: 'badge' };
+  const headerItems: HeaderItem[] = logos.map((logo) => ({ kind: 'logo', logo }));
+  if (showBadge) headerItems.splice(Math.min(badgePos, headerItems.length), 0, { kind: 'badge' });
+  const logoMaxW = headerItems.length ? Math.floor((PREVIEW_W - 44 - 24 - (headerItems.length - 1) * 8) / headerItems.length) : 0;
 
   const inputCls = 'w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm outline-none';
 
@@ -359,12 +410,8 @@ const TidalFlood = () => {
             </label>
           </div>
 
-          {/* Import massal */}
-          <details className="mt-4 pt-4 border-t border-gray-200">
-            <summary className="text-sm font-bold text-gray-800 cursor-pointer flex items-center gap-1.5">
-              <FileInput className="w-4 h-4" /> Import Data Harian (CSV / JSON)
-            </summary>
-            <p className="text-xs text-gray-500 mt-2">
+          <Section title={<><FileInput className="w-4 h-4" /> Import Data Harian (CSV / JSON)</>}>
+            <p className="text-xs text-gray-500">
               Satu baris per hari: <code className="bg-gray-100 px-1 rounded">tanggal, jam_mulai, jam_selesai, tinggi</code>. Tanggal format
               <code className="bg-gray-100 px-1 rounded">2025-07-01</code> atau <code className="bg-gray-100 px-1 rounded">01/07/2025</code>. Bisa juga paste langsung dari Excel (tab).
             </p>
@@ -379,73 +426,45 @@ const TidalFlood = () => {
               <button onClick={applyBulk} className="text-xs px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-md">Terapkan</button>
               {bulkMsg && <span className={`text-xs ${bulkMsg.ok ? 'text-green-700' : 'text-red-600'}`}>{bulkMsg.text}</span>}
             </div>
-          </details>
+          </Section>
 
-          {/* Teks */}
-          <details className="mt-4 pt-4 border-t border-gray-200">
-            <summary className="text-sm font-bold text-gray-800 cursor-pointer">✏️ Edit Teks & Catatan</summary>
-            <div className="grid sm:grid-cols-2 gap-3 mt-3">
-              <label className="text-xs text-gray-600">Nama instansi (baris 1)
-                <input value={orgLine1} onChange={(e) => setOrgLine1(e.target.value)} className={inputCls} />
+          <Section title="✏️ Teks, Kontak & Footer (isi, warna, ukuran font)">
+            <TextFieldsEditor fields={tf} />
+          </Section>
+
+          <Section title="📸 Logo">
+            <LogoManager logos={logos} onChange={setLogos} defaults={DEFAULT_LOGOS} size={logoSize} onSizeChange={setLogoSize} sizeMin={28} sizeMax={62} />
+            <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-gray-700">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={showBadge} onChange={(e) => setShowBadge(e.target.checked)} className="w-4 h-4" />
+                Tampilkan badge teks "{t('badge1')} {t('badge2')}"
               </label>
-              <label className="text-xs text-gray-600">Nama instansi (baris 2)
-                <input value={orgLine2} onChange={(e) => setOrgLine2(e.target.value)} className={inputCls} />
-              </label>
-              <label className="sm:col-span-2 text-xs text-gray-600">Deskripsi Air Rob
-                <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} className={inputCls} />
-              </label>
-              {notes.map((t, i) => (
-                <label key={i} className="text-xs text-gray-600">Catatan {i + 1}
-                  <textarea rows={3} value={t} onChange={(e) => setNotes((ns) => ns.map((x, j) => (j === i ? e.target.value : x)))} className={inputCls} />
+              {showBadge && (
+                <label className="flex items-center gap-2 text-xs">
+                  Posisi badge
+                  <input type="number" min={1} max={logos.length + 1} value={Math.min(badgePos, logos.length) + 1} onChange={(e) => setBadgePos(Math.max(0, Number(e.target.value) - 1))} className="w-14 p-1 border border-gray-300 rounded" />
                 </label>
-              ))}
+              )}
             </div>
-          </details>
-
-          <details className="mt-4 pt-4 border-t border-gray-200">
-            <summary className="text-sm font-bold text-gray-800 cursor-pointer">📞 Edit Kontak</summary>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3 mt-3">
-              {([
-                ['callCenter', 'Call Center Pusdalops-PB'], ['website', 'Website (footer)'], ['instagram', 'Instagram (footer)'],
-                ['facebook', 'Facebook'], ['igShort', 'Instagram (bawah)'], ['phone', 'Telepon/WA'], ['email', 'Email'], ['web2', 'Website (bawah)'],
-              ] as [keyof typeof contact, string][]).map(([k, label]) => (
-                <label key={k} className="text-xs text-gray-600">{label}
-                  <input value={contact[k]} onChange={(e) => setContact((c) => ({ ...c, [k]: e.target.value }))} className={inputCls} />
-                </label>
-              ))}
-            </div>
-          </details>
-
-          {/* Logo & background */}
-          <details className="mt-4 pt-4 border-t border-gray-200">
-            <summary className="text-sm font-bold text-gray-800 cursor-pointer">📸 Logo & Background</summary>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-              {['Logo BPBD', 'Logo Tagline', 'Logo Event', 'Logo Pemko'].map((label, i) => (
-                <div key={i}>
-                  <div onClick={() => logoInputRefs.current[i]?.click()} className="cursor-pointer border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-lg p-3 flex flex-col items-center justify-center h-24 bg-gray-50">
-                    {logos[i] ? <img src={logos[i]!} alt={label} className="max-w-16 max-h-12 object-contain" /> : <div className="w-12 h-12 rounded-full bg-gray-300" />}
-                    <span className="text-xs text-gray-600 mt-1">{label}</span>
-                  </div>
-                  <input
-                    ref={(el) => { logoInputRefs.current[i] = el; }}
-                    type="file" accept="image/*" className="hidden"
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f, (u) => setLogos((ls) => ls.map((x, j) => (j === i ? u : x)))); }}
-                  />
-                </div>
-              ))}
-            </div>
-            {backgroundImage && (
-              <div className="flex items-center gap-3 mt-3 flex-wrap">
-                <label className="text-sm text-gray-700">Kecerahan overlay:</label>
-                <input type="range" min={0} max={95} value={bgFade} onChange={(e) => setBgFade(Number(e.target.value))} className="w-40 accent-blue-600" />
-                <span className="text-sm text-gray-600">{bgFade}%</span>
-                <button onClick={() => setBackgroundImage(null)} className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 rounded-md">Hapus background</button>
+            <div className="mt-4 flex items-center gap-3 flex-wrap">
+              <span className="text-sm text-gray-700">Logo footer:</span>
+              <div onClick={() => footerLogoRef.current?.click()} className="cursor-pointer border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-lg w-16 h-16 flex items-center justify-center bg-gray-50">
+                {footerLogo ? <img src={footerLogo} alt="Logo footer" className="max-w-12 max-h-12 object-contain" /> : <Plus className="w-5 h-5 text-gray-400" />}
               </div>
-            )}
-          </details>
+              {footerLogo && <button onClick={() => setFooterLogo(null)} className="text-xs px-2 py-1 bg-red-500 hover:bg-red-600 text-white rounded-md">Hapus</button>}
+              <input ref={footerLogoRef} type="file" accept="image/*" className="hidden" onChange={async (e) => { const f = e.target.files?.[0]; if (f) setFooterLogo(await readFileAsDataUrl(f)); e.target.value = ''; }} />
+            </div>
+          </Section>
 
-          <input ref={bgInputRef} type="file" accept="image/*" className="hidden"
-            onChange={(e) => { const f = e.target.files?.[0]; if (f) readFile(f, setBackgroundImage); }} />
+          <Section title="🎨 Background & Overlay">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <button onClick={() => bgInputRef.current?.click()} className="text-xs px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-md">Upload background</button>
+              {backgroundImage && <button onClick={() => setBackgroundImage(null)} className="text-xs px-3 py-1.5 bg-gray-200 hover:bg-gray-300 rounded-md">Hapus background</button>}
+            </div>
+            <OverlayEditor value={overlay} onChange={setOverlay} />
+          </Section>
+
+          <input ref={bgInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { onBackground(e.target.files?.[0]); e.target.value = ''; }} />
         </div>
 
         {/* ================= PREVIEW (720x960 → 1080x1440) ================= */}
@@ -460,10 +479,7 @@ const TidalFlood = () => {
                 : { backgroundImage: 'linear-gradient(180deg, #e0f2fe 0%, #f0f9ff 35%, #bae6fd 70%, #1d6fd1 100%)' }),
             }}
           >
-            {/* overlay & dekorasi */}
-            {backgroundImage ? (
-              <div className="absolute inset-0" style={{ background: `linear-gradient(90deg, rgba(255,255,255,${bgFade / 100}) 0%, rgba(255,255,255,${(bgFade / 100) * 0.6}) 60%, rgba(255,255,255,${(bgFade / 100) * 0.3}) 100%)` }} />
-            ) : (
+            {!backgroundImage && (
               <svg className="absolute inset-0" width={PREVIEW_W} height={PREVIEW_H} viewBox={`0 0 ${PREVIEW_W} ${PREVIEW_H}`} preserveAspectRatio="none">
                 <path d="M0 120 C 160 60, 300 170, 470 110 S 680 70, 720 100 L720 0 L0 0Z" fill="#7dd3fc" opacity="0.35" />
                 <path d="M0 150 C 180 90, 320 200, 500 140 S 690 110, 720 130 L720 0 L0 0Z" fill="#38bdf8" opacity="0.18" />
@@ -471,24 +487,29 @@ const TidalFlood = () => {
                 <path d="M0 860 C 170 810, 330 900, 520 850 S 690 820, 720 840 L720 960 L0 960Z" fill="#1e40af" opacity="0.4" />
               </svg>
             )}
+            <OverlayLayer value={overlay} />
 
             <div className="relative z-10 h-full flex flex-col px-[22px] pt-[14px] pb-[8px] text-slate-900">
               {/* HEADER LOGO BAR */}
-              <div className="bg-[#0b1f4d] rounded-[22px] h-[70px] flex items-center justify-between px-3 shadow-lg">
-                <img src={logos[0] || bpbdLogo} className="h-[58px] w-[58px] object-contain" alt="BPBD" />
-                <div className="h-[50px] w-[176px] rounded-sm border border-sky-400/60 bg-gradient-to-br from-[#0b1f4d] via-[#123a7a] to-[#0b1f4d] flex flex-col justify-center px-2">
-                  <span className="text-[10px] font-semibold tracking-wide text-red-400 leading-none" style={{ fontFamily: 'Georgia, serif' }}>CITY OF A</span>
-                  <span className="text-[15px] font-semibold text-sky-100 leading-none mt-0.5 whitespace-nowrap" style={{ fontFamily: 'Georgia, serif' }}>THOUSAND RIVERS</span>
+              {headerItems.length > 0 && (
+                <div className="bg-[#0b1f4d] rounded-[22px] h-[70px] flex items-center justify-evenly gap-2 px-3 shadow-lg">
+                  {headerItems.map((it, i) =>
+                    it.kind === 'logo' ? (
+                      <img key={it.logo.id} src={it.logo.src} alt={`Logo ${i + 1}`} className="object-contain" style={{ height: logoSize, maxWidth: logoMaxW }} />
+                    ) : (
+                      <div key="badge" className="h-[50px] rounded-sm border border-sky-400/60 bg-gradient-to-br from-[#0b1f4d] via-[#123a7a] to-[#0b1f4d] flex flex-col justify-center px-2 min-w-0" style={{ maxWidth: Math.max(logoMaxW, 120) }}>
+                        <span className="font-semibold tracking-wide leading-none whitespace-nowrap" style={{ fontFamily: 'Georgia, serif', ...s('badge1') }}>{t('badge1')}</span>
+                        <span className="font-semibold leading-none mt-0.5 whitespace-nowrap" style={{ fontFamily: 'Georgia, serif', ...s('badge2') }}>{t('badge2')}</span>
+                      </div>
+                    )
+                  )}
                 </div>
-                <img src={logos[1] || majuLogo} className="h-[46px] w-[120px] object-contain" alt="Maju Sejahtera" />
-                <img src={logos[2] || logo500} className="h-[46px] w-[116px] object-contain" alt="500 Tahun" />
-                <img src={logos[3] || pemkoLogo} className="h-[56px] w-[48px] object-contain" alt="Pemko" />
-              </div>
+              )}
 
               {/* NAMA INSTANSI */}
-              <div className="text-center mt-[12px] text-[#0b1f4d] font-black leading-tight text-[16px] tracking-wide">
-                <div>{orgLine1}</div>
-                <div>{orgLine2}</div>
+              <div className="text-center mt-[12px] font-black leading-tight tracking-wide">
+                {t('org1') && <div style={s('org1')}>{t('org1')}</div>}
+                {t('org2') && <div style={s('org2')}>{t('org2')}</div>}
               </div>
 
               {/* JUDUL + KARTU AIR ROB */}
@@ -499,72 +520,73 @@ const TidalFlood = () => {
                       <CalendarDays className="w-6 h-6 text-white" />
                     </div>
                     <div className="-ml-3 pl-6 pr-6 h-[34px] bg-[#0b1f4d] rounded-r-full flex items-center">
-                      <span className="text-white font-black text-[21px] tracking-wide">JADWAL PERKIRAAN</span>
+                      <span className="font-black tracking-wide whitespace-nowrap" style={s('pill')}>{t('pill')}</span>
                     </div>
                   </div>
-                  <div className="font-black text-[#0b1f4d] text-[60px] leading-[0.95] tracking-tight mt-[6px] whitespace-nowrap">PASANG SURUT</div>
-                  <div className="font-black text-orange-500 text-[74px] leading-[0.95] tracking-tight">AIR ROB</div>
+                  <div className="font-black leading-[0.95] tracking-tight mt-[6px] whitespace-nowrap" style={s('title1')}>{t('title1')}</div>
+                  <div className="font-black leading-[0.95] tracking-tight whitespace-nowrap" style={s('title2')}>{t('title2')}</div>
                   <div className="inline-block mt-[6px] bg-gradient-to-r from-amber-300 to-yellow-400 rounded-full px-6 py-1 shadow">
-                    <span className="font-black text-[#0b1f4d] text-[22px] tracking-wide whitespace-nowrap">{periodLabel}</span>
+                    <span className="font-black tracking-wide whitespace-nowrap" style={s('period')}>{periodLabel}</span>
                   </div>
                 </div>
                 <div className="w-[176px] h-[190px] bg-white/95 rounded-2xl shadow-lg p-3 flex flex-col flex-shrink-0 mt-[10px]">
                   <div className="flex items-center gap-1.5">
                     <Waves className="w-6 h-6 text-blue-600" />
-                    <span className="font-black text-blue-700 text-[20px] leading-none">AIR ROB</span>
+                    <span className="font-black leading-none" style={s('cardTitle')}>{t('cardTitle')}</span>
                   </div>
-                  <p className="text-[12.5px] text-slate-800 font-medium leading-snug mt-2 flex-1">{description}</p>
+                  <p className="font-medium leading-snug mt-2 flex-1 overflow-hidden" style={s('cardDesc')}>{t('cardDesc')}</p>
                   <div className="self-end"><Waves className="w-9 h-9 text-blue-500" strokeWidth={1.5} /></div>
                 </div>
               </div>
 
               {/* TABEL */}
               <div className="mt-[12px] bg-white/95 rounded-2xl shadow-xl p-2.5 flex flex-col">
-                <div className="bg-[#0b1f4d] rounded-xl h-[34px] grid grid-cols-[150px_1fr_220px] items-center text-white font-black text-[15px] tracking-wide">
-                  <div className="text-center">TANGGAL</div>
-                  <div className="flex items-center justify-center gap-1.5 border-x border-white/20"><Clock className="w-4 h-4" /> JAM PUNCAK</div>
-                  <div className="text-center">KETINGGIAN MAKS</div>
+                <div className="bg-[#0b1f4d] rounded-xl h-[34px] grid grid-cols-[150px_1fr_220px] items-center font-black tracking-wide">
+                  <div className="text-center" style={s('th1')}>{t('th1')}</div>
+                  <div className="flex items-center justify-center gap-1.5 border-x border-white/20" style={s('th2')}><Clock className="w-4 h-4" /> {t('th2')}</div>
+                  <div className="text-center" style={s('th3')}>{t('th3')}</div>
                 </div>
                 <div className="flex flex-col gap-[4px] mt-[5px]" style={{ height: 306 }}>
                   {sortedRows.map((r) => {
                     const d = parseDate(r.date);
                     return (
-                      <div key={r.id} className="grid grid-cols-[150px_1fr_220px] items-center bg-white rounded-xl border border-slate-200 border-l-[5px] border-l-orange-500 shadow-sm" style={{ height: rowH }}>
+                      <div key={r.id} className="grid grid-cols-[150px_1fr_220px] items-center bg-white rounded-xl border border-slate-200 border-l-[5px] border-l-orange-500 shadow-sm overflow-hidden" style={{ height: rowH }}>
                         <div className="flex items-center gap-2 pl-3">
                           <div className="w-[32px] h-[32px] rounded-md border-2 border-orange-500 flex items-center justify-center flex-shrink-0">
                             <CalendarDays className="w-5 h-5 text-orange-500" />
                           </div>
                           {big ? (
-                            <div className="flex-1 text-center leading-none">
-                              <div className="font-black text-[#0b1f4d] text-[12px]">{d ? HARI[d.getDay()] : '-'}</div>
-                              <div className="font-black text-[#0b1f4d] text-[34px] leading-[1]">{d ? d.getDate() : '-'}</div>
-                              <div className="font-black text-[#0b1f4d] text-[12px]">{d ? BULAN[d.getMonth()] : ''}</div>
+                            <div className="flex-1 text-center leading-none font-black">
+                              <div style={s('rDay')}>{d ? HARI[d.getDay()] : '-'}</div>
+                              <div className="leading-[1]" style={s('rDate')}>{d ? d.getDate() : '-'}</div>
+                              <div style={s('rMonth')}>{d ? BULAN[d.getMonth()] : ''}</div>
                             </div>
                           ) : (
-                            <div className="flex-1 text-center leading-none">
-                              <div className="font-black text-[#0b1f4d] text-[10px]">{d ? HARI[d.getDay()] : '-'}</div>
-                              <div className="font-black text-[#0b1f4d] whitespace-nowrap mt-[2px]">
-                                <span className="text-[20px]">{d ? d.getDate() : '-'}</span>{' '}
-                                <span className="text-[10px]">{d ? BULAN[d.getMonth()].slice(0, 3) : ''}</span>
+                            <div className="flex-1 text-center leading-none font-black">
+                              <div style={s('rDay', { factor: 10 / 12 })}>{d ? HARI[d.getDay()] : '-'}</div>
+                              <div className="whitespace-nowrap mt-[2px]">
+                                <span style={s('rDate', { factor: 20 / 34 })}>{d ? d.getDate() : '-'}</span>{' '}
+                                <span style={s('rMonth', { factor: 10 / 12 })}>{d ? BULAN[d.getMonth()].slice(0, 3) : ''}</span>
                               </div>
                             </div>
                           )}
                         </div>
                         <div className="flex flex-col items-center justify-center border-x border-slate-200 h-[70%]">
-                          <div className={`font-black text-[#0b1f4d] ${big ? 'text-[24px]' : 'text-[19px]'} leading-none whitespace-nowrap`}>
-                            {fmtTime(r.start)} – {fmtTime(r.end)} <span className={big ? 'text-[15px]' : 'text-[12px]'}>WITA</span>
+                          <div className="font-black leading-none whitespace-nowrap" style={s('rTime', { factor: big ? 1 : 19 / 24 })}>
+                            {fmtTime(r.start)} – {fmtTime(r.end)}{' '}
+                            <span style={s('rZone', { factor: big ? 1 : 12 / 15 })}>{t('rZone')}</span>
                           </div>
                           {big && <div className="mt-1.5"><WaveLine width={150} /></div>}
                         </div>
                         <div className="flex items-center justify-between pl-3 pr-2">
-                          <div className="leading-none">
-                            <div className="flex items-baseline text-orange-500 font-black">
-                              <span className={big ? 'text-[22px]' : 'text-[17px]'}>±</span>
-                              <span className={big ? 'text-[44px]' : 'text-[30px]'}>{fmtHeight(r.height)}</span>
+                          <div className="leading-none font-black">
+                            <div className="flex items-baseline" style={s('rHeight', { factor: big ? 1 : 30 / 44 })}>
+                              <span style={{ fontSize: '0.5em' }}>±</span>
+                              <span>{fmtHeight(r.height)}</span>
                             </div>
                             <div className="flex items-end gap-2">
-                              <span className={`text-orange-500 font-black ${big ? 'text-[15px]' : 'text-[12px]'}`}>METER</span>
-                              <span className="text-[7px] font-black text-[#0b1f4d] pb-[1px] whitespace-nowrap">TITIK TERENDAH (LAT)</span>
+                              <span style={s('rUnit', { factor: big ? 1 : 12 / 15 })}>{t('rUnit')}</span>
+                              <span className="pb-[1px] whitespace-nowrap" style={s('rRef')}>{t('rRef')}</span>
                             </div>
                           </div>
                           <GaugeIcon size={big ? 46 : 34} />
@@ -578,13 +600,13 @@ const TidalFlood = () => {
                 <div className="mt-[8px] bg-sky-50 rounded-xl px-3 py-2 border border-sky-100">
                   <div className="flex items-center gap-1.5">
                     <div className="w-5 h-5 rounded-full bg-blue-700 flex items-center justify-center"><Info className="w-3.5 h-3.5 text-white" /></div>
-                    <span className="font-black text-blue-700 text-[14px] tracking-wide">CATATAN PENTING</span>
+                    <span className="font-black tracking-wide" style={s('noteTitle')}>{t('noteTitle')}</span>
                   </div>
                   <div className="grid grid-cols-3 mt-1.5">
                     {[House, Wind, TriangleAlert].map((Icon, i) => (
                       <div key={i} className={`flex items-start gap-2 px-2 ${i > 0 ? 'border-l border-slate-300' : ''}`}>
                         <Icon className={`w-8 h-8 flex-shrink-0 ${i === 2 ? 'text-amber-500' : 'text-[#0b1f4d]'}`} strokeWidth={1.8} />
-                        <p className="text-[9.5px] leading-snug text-slate-800 font-medium">{notes[i]}</p>
+                        <p className="leading-snug font-medium" style={s(`note${i + 1}`)}>{t(`note${i + 1}`)}</p>
                       </div>
                     ))}
                   </div>
@@ -594,40 +616,43 @@ const TidalFlood = () => {
               {/* FOOTER */}
               <div className="mt-auto">
                 <div className="bg-[#0b1f4d] rounded-2xl h-[82px] grid grid-cols-[1.25fr_1fr_1.2fr] items-center px-3 text-white shadow-lg">
-                  <div className="flex items-center gap-2">
-                    <img src={logos[0] || bpbdLogo} className="w-[52px] h-[52px] object-contain" alt="BPBD" />
-                    <div className="leading-tight">
-                      <div className="font-black text-[11px]">Layanan Darurat Bencana</div>
-                      <div className="font-black text-[11px]">Kota Banjarmasin</div>
-                      <div className="text-[9px] opacity-90">Call Center Pusdalops-PB:</div>
-                      <div className="font-black text-[13px] text-amber-300">{contact.callCenter}</div>
+                  <div className="flex items-center gap-2 min-w-0">
+                    {footerLogo && <img src={footerLogo} className="w-[52px] h-[52px] object-contain flex-shrink-0" alt="Logo footer" />}
+                    <div className="leading-tight min-w-0">
+                      <div className="font-black" style={s('fTitle1')}>{t('fTitle1')}</div>
+                      <div className="font-black" style={s('fTitle2')}>{t('fTitle2')}</div>
+                      <div className="opacity-90" style={s('fCcLabel')}>{t('fCcLabel')}</div>
+                      <div className="font-black" style={s('fCc')}>{t('fCc')}</div>
                     </div>
                   </div>
                   <div className="flex flex-col items-center border-x border-white/20">
                     <div className="bg-white rounded-2xl px-3 py-1 flex items-center gap-1.5">
                       <div className="w-8 h-8 rounded-full bg-blue-700 flex items-center justify-center"><Phone className="w-4 h-4 text-white" /></div>
                       <div className="leading-none text-center">
-                        <div className="font-black text-red-600 text-[30px] leading-none">112</div>
-                        <div className="text-[7px] font-black text-blue-800">BANJARMASIN SIAGA</div>
+                        <div className="font-black leading-none" style={s('f112')}>{t('f112')}</div>
+                        <div className="font-black" style={s('f112Sub')}>{t('f112Sub')}</div>
                       </div>
                     </div>
-                    <div className="text-[9px] mt-1 opacity-90">Gratis, Bebas Pulsa, 24 Jam</div>
+                    <div className="mt-1 opacity-90" style={s('f112Note')}>{t('f112Note')}</div>
                   </div>
-                  <div className="flex items-start gap-2 pl-3">
+                  <div className="flex items-start gap-2 pl-3 min-w-0">
                     <Globe className="w-7 h-7 flex-shrink-0" strokeWidth={1.6} />
                     <div className="leading-tight min-w-0">
-                      <div className="font-black text-[11px]">PANTAU INFORMASI TERKINI</div>
-                      <div className="text-[10px] opacity-90 truncate">{contact.website}</div>
-                      <div className="text-[10px] opacity-90 truncate">{contact.instagram}</div>
+                      <div className="font-black" style={s('fInfoTitle')}>{t('fInfoTitle')}</div>
+                      <div className="opacity-90 truncate" style={s('fInfo1')}>{t('fInfo1')}</div>
+                      <div className="opacity-90 truncate" style={s('fInfo2')}>{t('fInfo2')}</div>
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center justify-center gap-2 text-[8.5px] font-semibold text-white mt-[5px] whitespace-nowrap">
-                  <span className="flex items-center gap-0.5"><Facebook className="w-3 h-3" />{contact.facebook}</span><span>|</span>
-                  <span className="flex items-center gap-0.5"><Instagram className="w-3 h-3" />{contact.igShort}</span><span>|</span>
-                  <span className="flex items-center gap-0.5"><Phone className="w-3 h-3" />{contact.phone}</span><span>|</span>
-                  <span className="flex items-center gap-0.5"><Mail className="w-3 h-3" />{contact.email}</span><span>|</span>
-                  <span className="flex items-center gap-0.5"><Globe className="w-3 h-3" />{contact.web2}</span>
+                <div className="flex items-center justify-center gap-2 font-semibold mt-[5px] whitespace-nowrap" style={s('strip')}>
+                  {([
+                    [Facebook, 'sFb'], [Instagram, 'sIg'], [Phone, 'sPhone'], [Mail, 'sMail'], [Globe, 'sWeb'],
+                  ] as const).filter(([, k]) => t(k)).map(([Icon, k], i) => (
+                    <span key={k} className="flex items-center gap-2">
+                      {i > 0 && <span>|</span>}
+                      <span className="flex items-center gap-0.5"><Icon style={{ width: '1.3em', height: '1.3em' }} />{t(k)}</span>
+                    </span>
+                  ))}
                 </div>
               </div>
             </div>

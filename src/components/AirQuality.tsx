@@ -1,6 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Download, Upload, RefreshCw } from 'lucide-react';
 import { toPng } from 'html-to-image';
+import {
+  DEFAULT_OVERLAY, makeLogos, useTextFields,
+  type LogoItem, type OverlaySettings, type TextDef,
+} from '../lib/customize';
+import { LogoManager, OverlayEditor, OverlayLayer, Section, TextFieldsEditor } from './shared/Customize';
 import pemkoLogo from '../assets/pemko.png';
 import yaLogo from '../assets/maju-sejahtera.png';
 import bpbdLogo from '../assets/bpbd.png';
@@ -113,16 +118,74 @@ export const getCategoryDetails = (nilai: string) => {
   }
 };
 
+const NAVY = '#0F2C59';
+const GREEN_TAG = '#065F46';
+const DEFAULT_LOGOS = [pemkoLogo, yaLogo, bpbdLogo, logo112];
+
+const AQ_TEXT_DEFS: TextDef[] = [
+  { key: 'stName', group: 'Header', label: 'Nama stasiun', text: 'Stasiun Kayu Tangi', color: '#0f172a', size: 10 },
+  { key: 'stSub', group: 'Header', label: 'Lokasi stasiun', text: 'Kantor Dinas PUPR', color: '#64748b', size: 8 },
+  { key: 'stAddr', group: 'Header', label: 'Alamat stasiun', text: 'Jl. Brigjen Hasan Basri, Banjarmasin', color: '#94a3b8', size: 7.5 },
+  { key: 'dateTxt', group: 'Header', label: 'Tanggal (dari data)', color: '#0f172a', size: 9.5 },
+  { key: 'timeTxt', group: 'Header', label: 'Jam (dari data)', text: 'WITA', color: '#ef4444', size: 10 },
+
+  { key: 'tInfo', group: 'Judul', label: 'Judul besar', text: 'INFO', color: NAVY, size: 68 },
+  { key: 'tLine1', group: 'Judul', label: 'Judul baris 1', text: 'KUALITAS', color: NAVY, size: 26 },
+  { key: 'tLine2', group: 'Judul', label: 'Judul baris 2', text: 'UDARA', color: NAVY, size: 26 },
+  { key: 'city', group: 'Judul', label: 'Pil kota', text: 'KOTA BANJARMASIN', color: '#ffffff', size: 15 },
+  { key: 'monitor', group: 'Judul', label: 'Keterangan pemantauan', text: 'Berdasarkan hasil pemantauan di', color: '#64748b', size: 10 },
+
+  { key: 'artiHead', group: 'Kolom kiri', label: 'Judul kotak arti', text: 'APA ARTINYA?', color: '#ffffff', size: 10 },
+  { key: 'catName', group: 'Kolom kiri', label: 'Nama kategori (dari data)', color: '', size: 14 },
+  { key: 'catDesc', group: 'Kolom kiri', label: 'Penjelasan kategori (dari data)', color: '#475569', size: 11 },
+  { key: 'sensTitle', group: 'Kolom kiri', label: 'Judul kelompok sensitif', text: 'Kelompok sensitif (anak-anak, lansia, ibu hamil, & penderita asma):', multiline: true, color: '#1E3A8A', size: 11 },
+  { key: 'sensDesc', group: 'Kolom kiri', label: 'Saran kelompok sensitif (dari kategori)', color: '#64748b', size: 11 },
+  { key: 'fireHead', group: 'Kolom kiri', label: 'Judul kotak kebakaran', text: 'WASPADAI DAMPAK KEBAKARAN LAHAN', color: '#ffffff', size: 9.5 },
+  { key: 'fireText', group: 'Kolom kiri', label: 'Deskripsi kebakaran hutan', multiline: true, color: '#475569', size: 11,
+    text: 'Memasuki musim kemarau, kebakaran hutan dan lahan di beberapa kabupaten/kota sekitar dapat menghasilkan asap yang terbawa angin hingga memengaruhi kualitas udara di wilayah Banjarmasin.' },
+  { key: 'notePill', group: 'Kolom kiri', label: 'Catatan hijau (dari kategori)', color: '#1B5E20', size: 8.5 },
+
+  { key: 'ispuLbl', group: 'Kolom kanan', label: 'Label ISPU', text: 'ISPU', color: '', size: 14 },
+  { key: 'ispuVal', group: 'Kolom kanan', label: 'Nilai ISPU (dari data)', color: '', size: 60 },
+  { key: 'ispuCat', group: 'Kolom kanan', label: 'Kategori ISPU (dari data)', color: '', size: 28 },
+  { key: 'ispuMeta', group: 'Kolom kanan', label: 'Polutan & waktu (dari data)', color: '', size: 9.5 },
+  { key: 'pm10T', group: 'Kolom kanan', label: 'PM10 judul', text: 'PM10 (Debu Halus)', color: NAVY, size: 9.5 },
+  { key: 'pm10D', group: 'Kolom kanan', label: 'PM10 keterangan', text: 'Partikel berukuran ≤ 10 µm', color: '#64748b', size: 7.5 },
+  { key: 'pm25T', group: 'Kolom kanan', label: 'PM2.5 judul', text: 'PM2.5 (Debu Sangat Halus)', color: NAVY, size: 9.5 },
+  { key: 'pm25D', group: 'Kolom kanan', label: 'PM2.5 keterangan', text: 'Partikel berukuran ≤ 2,5 µm', color: '#64748b', size: 7.5 },
+  { key: 'katLbl', group: 'Kolom kanan', label: 'Label kategori grafik', text: 'KATEGORI', color: '#94a3b8', size: 9 },
+  { key: 'legend', group: 'Kolom kanan', label: 'Teks legenda kategori', color: '', size: 6.5 },
+  { key: 'barVal', group: 'Kolom kanan', label: 'Angka grafik batang', color: '#1e293b', size: 8 },
+  { key: 'barName', group: 'Kolom kanan', label: 'Nama polutan grafik', color: '#64748b', size: 8 },
+  { key: 'ispuNote', group: 'Kolom kanan', label: 'Catatan ISPU', text: '*ISPU : Indeks Standar Pencemar Udara', color: '#94a3b8', size: 7.5 },
+  { key: 'tipsHead', group: 'Kolom kanan', label: 'Judul tips', text: 'TIPS MENJAGA KESEHATAN', color: '#ffffff', size: 10 },
+  { key: 'tip1', group: 'Kolom kanan', label: 'Tips 1', text: tipsList[0].text, multiline: true, color: '#334155', size: 12 },
+  { key: 'tip2', group: 'Kolom kanan', label: 'Tips 2', text: tipsList[1].text, multiline: true, color: '#334155', size: 12 },
+  { key: 'tip3', group: 'Kolom kanan', label: 'Tips 3', text: tipsList[2].text, multiline: true, color: '#334155', size: 12 },
+
+  { key: 'source', group: 'Footer & Kontak', label: 'Sumber ({tipe} = jenis data dari API)', text: 'Sumber: {tipe} & ispu.kemenlh.go.id', color: GREEN_TAG, size: 9 },
+  { key: 'tagline', group: 'Footer & Kontak', label: 'Tagline', text: 'Udara Bersih Untuk Kita Semua 🍃', color: GREEN_TAG, size: 12 },
+  { key: 'appeal', group: 'Footer & Kontak', label: 'Ajakan footer', multiline: true, color: '#ffffff', size: 10,
+    text: 'MARI BERSAMA-SAMA MENJAGA KUALITAS UDARA DENGAN TIDAK MELAKUKAN PEMBAKARAN LAHAN MAUPUN SAMPAH SERTA MENDUKUNG UPAYA PENCEGAHAN KEBAKARAN HUTAN DAN LAHAN.' },
+  { key: 'b112a', group: 'Footer & Kontak', label: 'Badge darurat atas', text: 'Call Center Darurat', color: '#ffffff', size: 6.5 },
+  { key: 'b112b', group: 'Footer & Kontak', label: 'Badge darurat nomor', text: '112', color: '#ffffff', size: 18 },
+  { key: 'b112c', group: 'Footer & Kontak', label: 'Badge darurat bawah', text: '(Bebas Pulsa)', color: '#ffffff', size: 6.5 },
+  { key: 'contacts', group: 'Footer & Kontak', label: 'Baris kontak (warna & ukuran semua item)', color: '#ffffff', size: 8 },
+  { key: 'cWeb', group: 'Footer & Kontak', label: 'Website', text: '🌐  bpbd.banjarmasinkota.go.id' },
+  { key: 'cIg', group: 'Footer & Kontak', label: 'Instagram', text: '📸  bpbd_kota_banjarmasin' },
+  { key: 'cMail', group: 'Footer & Kontak', label: 'Email', text: '📩  bpbdk.bjm3@gmail.com' },
+  { key: 'cPhone', group: 'Footer & Kontak', label: 'Telepon', text: '📞  0851-8689-1117' },
+];
+
 const AirQuality = () => {
   const [ispuData, setIspuData] = useState<IspuData | null>(null);
   const [loading, setLoading] = useState(true);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
   const [gridSize, setGridSize] = useState(50);
   const [showGrid, setShowGrid] = useState(false);
-  const [logos, setLogos] = useState<(string | null)[]>([pemkoLogo, yaLogo, bpbdLogo, logo112]);
-  const [gradientEnabled, setGradientEnabled] = useState(false);
-  const [gradientColor, setGradientColor] = useState('#000000');
-  const [gradientOpacity, setGradientOpacity] = useState(50);
+  const [logos, setLogos] = useState<LogoItem[]>(() => makeLogos(DEFAULT_LOGOS));
+  const [logoSize, setLogoSize] = useState(46);
+  const [overlay, setOverlay] = useState<OverlaySettings>(DEFAULT_OVERLAY);
 
   // Default background color picker (when no image uploaded)
   const [bgMode, setBgMode] = useState<'gradient' | 'solid'>('gradient');
@@ -130,17 +193,11 @@ const AirQuality = () => {
   const [bgColor2, setBgColor2] = useState('#4FA8D4');
 
   // Text color pickers
-  const [titleColor, setTitleColor] = useState('#0F2C59');       // INFO + KUALITAS UDARA
-  const [taglineColor, setTaglineColor] = useState('#065F46');   // Udara Bersih + Sumber
-
-  // Custom Warning text
-  const [warningText, setWarningText] = useState(
-    'Memasuki musim kemarau, kebakaran hutan dan lahan di beberapa kabupaten/kota sekitar dapat menghasilkan asap yang terbawa angin hingga memengaruhi kualitas udara di wilayah Banjarmasin.'
-  );
+  const tf = useTextFields(AQ_TEXT_DEFS);
+  const { t, s } = tf;
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const logoInputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const previewRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -174,33 +231,6 @@ const AirQuality = () => {
     }
   };
 
-  const handleLogoUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          const newLogos = [...logos];
-          newLogos[index] = event.target.result as string;
-          setLogos(newLogos);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const addLogoSlot = () => {
-    if (logos.length < 5) {
-      setLogos([...logos, null]);
-    }
-  };
-
-  const removeLogoSlot = (index: number) => {
-    if (index >= 3) {
-      const newLogos = logos.filter((_, i) => i !== index);
-      setLogos(newLogos);
-    }
-  };
 
 
   const downloadImage = async () => {
@@ -365,17 +395,6 @@ const AirQuality = () => {
             </div>
           </div>
 
-          {/* Settings Custom Warning */}
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <h3 className="text-sm font-bold text-gray-800 mb-2 font-sans">⚠️ Edit Deskripsi Teks Kebakaran Hutan</h3>
-            <textarea
-              rows={2}
-              value={warningText}
-              onChange={(e) => setWarningText(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm outline-none"
-              placeholder="Masukkan keterangan dampak kebakaran hutan dan lahan..."
-            />
-          </div>
 
           {/* Default Background Color Picker (only when no image uploaded) */}
           {!backgroundImage && (
@@ -456,55 +475,9 @@ const AirQuality = () => {
             </div>
           )}
 
-          {/* Text Color Pickers */}
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <h3 className="text-sm font-bold text-gray-800 mb-3 font-sans">🖊️ Warna Teks</h3>
-            <div className="flex flex-wrap gap-6">
-              {/* Title color */}
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-5 h-5 rounded-full border border-gray-300 flex-shrink-0"
-                  style={{ backgroundColor: titleColor }}
-                />
-                <label className="text-xs font-medium text-gray-600">INFO &amp; KUALITAS UDARA:</label>
-                <input
-                  type="color"
-                  value={titleColor}
-                  onChange={(e) => setTitleColor(e.target.value)}
-                  className="w-9 h-9 rounded-lg cursor-pointer border border-gray-200 p-0.5"
-                />
-                <span className="text-xs text-gray-500 font-mono">{titleColor}</span>
-                <button
-                  onClick={() => setTitleColor('#0F2C59')}
-                  className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-colors"
-                >
-                  Reset
-                </button>
-              </div>
-
-              {/* Tagline + Sumber color */}
-              <div className="flex items-center gap-2">
-                <div
-                  className="w-5 h-5 rounded-full border border-gray-300 flex-shrink-0"
-                  style={{ backgroundColor: taglineColor }}
-                />
-                <label className="text-xs font-medium text-gray-600">Tagline &amp; Sumber:</label>
-                <input
-                  type="color"
-                  value={taglineColor}
-                  onChange={(e) => setTaglineColor(e.target.value)}
-                  className="w-9 h-9 rounded-lg cursor-pointer border border-gray-200 p-0.5"
-                />
-                <span className="text-xs text-gray-500 font-mono">{taglineColor}</span>
-                <button
-                  onClick={() => setTaglineColor('#065F46')}
-                  className="text-xs px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-md transition-colors"
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-          </div>
+          <Section title="✏️ Teks, Kontak & Footer (isi, warna, ukuran font)">
+            <TextFieldsEditor fields={tf} />
+          </Section>
 
           {/* Grid Settings */}
           {backgroundImage && (
@@ -537,108 +510,13 @@ const AirQuality = () => {
             </div>
           )}
 
-          {/* Gradient Overlay Settings */}
-          {backgroundImage && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="space-y-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={gradientEnabled}
-                    onChange={(e) => setGradientEnabled(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 rounded"
-                  />
-                  <span className="text-sm font-medium text-gray-700 font-sans">Overlay Gradient (Top → Bottom)</span>
-                </label>
+          <Section title="🌗 Overlay (jenis, arah & warna)">
+            <OverlayEditor value={overlay} onChange={setOverlay} />
+          </Section>
 
-                {gradientEnabled && (
-                  <div className="flex items-center gap-4 flex-wrap ml-6">
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm font-medium text-gray-700 font-sans">Warna:</label>
-                      <input
-                        type="color"
-                        value={gradientColor}
-                        onChange={(e) => setGradientColor(e.target.value)}
-                        className="w-10 h-8 rounded cursor-pointer"
-                      />
-                      <span className="text-xs text-gray-600">{gradientColor}</span>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <label className="text-sm font-medium text-gray-700 font-sans">Opacity:</label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={gradientOpacity}
-                        onChange={(e) => setGradientOpacity(Number(e.target.value))}
-                        className="w-32"
-                      />
-                      <span className="text-sm text-gray-600 w-12">{gradientOpacity}%</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Logo Upload Section */}
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-gray-800 font-sans">📸 Logo Header</h3>
-              <button
-                onClick={addLogoSlot}
-                className="text-xs px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors"
-              >
-                + Tambah Logo
-              </button>
-            </div>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-              {logos.map((logo, index) => (
-                <div key={index} className="relative">
-                  <div
-                    onClick={() => logoInputRefs.current[index]?.click()}
-                    className="cursor-pointer border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-lg p-3 flex flex-col items-center justify-center h-24 transition-colors bg-gray-50 hover:bg-gray-100"
-                  >
-                    {logo ? (
-                      <img
-                        src={logo}
-                        alt={`Logo ${index + 1}`}
-                        className="max-w-12 max-h-12 object-contain"
-                      />
-                    ) : (
-                      <div className={`w-12 h-12 rounded-full ${index === 0 ? 'bg-yellow-400' :
-                        index === 1 ? 'bg-orange-500' :
-                          index === 2 ? 'bg-blue-600' :
-                            index === 3 ? 'bg-green-500' :
-                              index === 4 ? 'bg-pink-500' :
-                                'bg-cyan-500'
-                        }`}></div>
-                    )}
-                    <span className="text-xs text-gray-600 mt-1">Logo {index + 1}</span>
-                  </div>
-                  {index >= 3 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeLogoSlot(index);
-                      }}
-                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full text-xs flex items-center justify-center"
-                    >
-                      ×
-                    </button>
-                  )}
-                  <input
-                    ref={(el) => { logoInputRefs.current[index] = el; }}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleLogoUpload(index, e)}
-                    className="hidden"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
+          <Section title="📸 Logo Header">
+            <LogoManager logos={logos} onChange={setLogos} defaults={DEFAULT_LOGOS} size={logoSize} onSizeChange={setLogoSize} sizeMin={24} sizeMax={56} />
+          </Section>
 
           <input
             ref={fileInputRef}
@@ -670,6 +548,7 @@ const AirQuality = () => {
           >
             {/* Blur */}
             <div className="absolute inset-0 backdrop-blur-[3px] bg-white/10 z-0"></div>
+            <OverlayLayer value={overlay} className="z-0" />
 
             {/* Grid Overlay */}
             {backgroundImage && showGrid && (
@@ -704,21 +583,16 @@ const AirQuality = () => {
               {/* HEADER SECTION */}
               <div className="flex justify-between items-center h-[56px]">
                 {/* Left: Logos */}
-                <div className="flex items-center gap-1.5">
-                  <img src={logos[0] || pemkoLogo} className="w-[46px] h-[46px] object-contain" alt="Logo Pemko" />
-
-                  {logos[1] ? (
-                    <img src={logos[1] || yaLogo} className="w-[50px] h-[28px] object-contain" alt="Logo Maju" />
-                  ) : (
-                    <div className="w-[50px] h-[30px] bg-black border border-white flex flex-col items-center justify-center p-0.5 shadow-sm rounded-sm">
-                      <span className="text-[3px] text-white tracking-widest leading-none font-bold uppercase">Banjarmasin</span>
-                      <span className="text-[5px] text-red-500 font-extrabold leading-none italic uppercase">MAJU</span>
-                      <span className="text-[4px] text-white font-extrabold leading-none uppercase">SEJAHTERA</span>
-                    </div>
-                  )}
-
-                  <img src={logos[2] || bpbdLogo} className="w-[46px] h-[46px] object-contain" alt="Logo BPBD" />
-                  <img src={logos[3] || logo112} className="w-[46px] h-[46px] object-contain" alt="Logo 112" />
+                <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                  {logos.map((logo, i) => (
+                    <img
+                      key={logo.id}
+                      src={logo.src}
+                      alt={`Logo ${i + 1}`}
+                      className="object-contain flex-shrink"
+                      style={{ height: logoSize, maxWidth: Math.floor((270 - (logos.length - 1) * 6) / Math.max(1, logos.length)) }}
+                    />
+                  ))}
                 </div>
 
                 {/* Right: Station & Calendar Cards */}
@@ -729,9 +603,9 @@ const AirQuality = () => {
                       <span className="text-[8px] text-white">📍</span>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] font-black text-slate-900 leading-none">Stasiun Kayu Tangi</p>
-                      <p className="text-[8px] text-slate-500 leading-normal mt-0.5 truncate">Kantor Dinas PUPR</p>
-                      <p className="text-[7.5px] text-slate-400 leading-none truncate">Jl. Brigjen Hasan Basri, Banjarmasin</p>
+                      <p className="font-black leading-none" style={s('stName')}>{t('stName')}</p>
+                      <p className="leading-normal mt-0.5 truncate" style={s('stSub')}>{t('stSub')}</p>
+                      <p className="leading-none truncate" style={s('stAddr')}>{t('stAddr')}</p>
                     </div>
                   </div>
 
@@ -741,8 +615,8 @@ const AirQuality = () => {
                       <span className="text-[8px] text-white">📅</span>
                     </div>
                     <div>
-                      <p className="text-[9.5px] font-black text-slate-900 leading-none">{activeDate}</p>
-                      <p className="text-[10px] font-extrabold text-red-500 leading-none mt-1">{activeTime} WITA</p>
+                      <p className="font-black leading-none" style={s('dateTxt')}>{activeDate}</p>
+                      <p className="font-extrabold leading-none mt-1" style={s('timeTxt')}>{activeTime} {t('timeTxt')}</p>
                     </div>
                   </div>
                 </div>
@@ -756,34 +630,25 @@ const AirQuality = () => {
                   {/* Title Header */}
                   <div>
                     <div className="flex items-start gap-1">
-                      <span
-                        className="text-[68px] font-black tracking-tighter leading-none"
-                        style={{ color: titleColor }}
-                      >INFO</span>
+                      <span className="font-black tracking-tighter leading-none" style={s('tInfo')}>{t('tInfo')}</span>
                       <div className="flex flex-col" style={{ paddingTop: '2px' }}>
-                        <span
-                          className="text-[26px] font-black tracking-tight leading-none"
-                          style={{ color: titleColor }}
-                        >KUALITAS</span>
-                        <span
-                          className="text-[26px] font-black tracking-tight leading-none mt-0.5"
-                          style={{ color: titleColor }}
-                        >UDARA</span>
+                        <span className="font-black tracking-tight leading-none" style={s('tLine1')}>{t('tLine1')}</span>
+                        <span className="font-black tracking-tight leading-none mt-0.5" style={s('tLine2')}>{t('tLine2')}</span>
                       </div>
                     </div>
                     {/* green pill */}
-                    <div className="bg-[#0D7C34] text-white text-[15px] font-black tracking-wider text-center py-1 rounded-md mt-1 shadow-sm uppercase">
-                      KOTA BANJARMASIN
+                    <div className="bg-[#0D7C34] font-black tracking-wider text-center py-1 rounded-md mt-1 shadow-sm uppercase" style={s('city')}>
+                      {t('city')}
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-2 font-medium">
-                      Berdasarkan hasil pemantauan di <span className="font-bold text-[#0F2C59]">Stasiun Kayu Tangi</span>
+                    <p className="mt-2 font-medium" style={s('monitor')}>
+                      {t('monitor')} <span className="font-bold text-[#0F2C59]">{t('stName')}</span>
                     </p>
                   </div>
 
                   {/* APA ARTINYA? Box */}
                   <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden h-[215px]">
-                    <div className="bg-[#0F2C59] text-white text-[10px] font-black text-center py-1 uppercase tracking-wider">
-                      APA ARTINYA?
+                    <div className="bg-[#0F2C59] font-black text-center py-1 uppercase tracking-wider" style={s('artiHead')}>
+                      {t('artiHead')}
                     </div>
                     <div className="p-2.5 flex flex-col justify-between flex-grow min-h-0 text-[11px]">
                       {/* block 1 category info */}
@@ -792,10 +657,10 @@ const AirQuality = () => {
                           🛡️
                         </div>
                         <div className="min-w-0">
-                          <h4 className="text-[14px] font-black leading-none uppercase mb-1" style={{ color: activeColor }}>
+                          <h4 className="font-black leading-none uppercase mb-1" style={s('catName', { auto: activeColor })}>
                             {row.kategori.nilai}
                           </h4>
-                          <p className="text-slate-600 leading-normal line-clamp-3">
+                          <p className="leading-normal line-clamp-3" style={s('catDesc')}>
                             {row.kategori.keterangan || catDetails.artinya}
                           </p>
                         </div>
@@ -807,10 +672,10 @@ const AirQuality = () => {
                           🫁
                         </div>
                         <div className="min-w-0">
-                          <h5 className="font-black text-[#1E3A8A] leading-tight">
-                            Kelompok sensitif (anak-anak, lansia, ibu hamil, & penderita asma):
+                          <h5 className="font-black leading-tight" style={s('sensTitle')}>
+                            {t('sensTitle')}
                           </h5>
-                          <p className="text-slate-500 leading-normal mt-0.5 line-clamp-3">
+                          <p className="leading-normal mt-0.5 line-clamp-3" style={s('sensDesc')}>
                             {catDetails.kelompokSensitif}
                           </p>
                         </div>
@@ -820,13 +685,13 @@ const AirQuality = () => {
 
                   {/* FIRE IMPACT Card */}
                   <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden h-[145px]">
-                    <div className="bg-[#0D7C34] text-white text-[9.5px] font-black text-center py-1 uppercase tracking-wide">
-                      WASPADAI DAMPAK KEBAKARAN LAHAN
+                    <div className="bg-[#0D7C34] font-black text-center py-1 uppercase tracking-wide" style={s('fireHead')}>
+                      {t('fireHead')}
                     </div>
                     <div className="p-2.5 flex items-start gap-2.5 flex-grow">
                       <span className="text-3xl select-none flex-shrink-0">🔥</span>
-                      <p className="text-[11px] text-slate-600 leading-relaxed font-medium line-clamp-4">
-                        {warningText}
+                      <p className="leading-relaxed font-medium line-clamp-4" style={s('fireText')}>
+                        {t('fireText')}
                       </p>
                     </div>
                   </div>
@@ -836,7 +701,7 @@ const AirQuality = () => {
                     <div className="w-5 h-5 rounded-full bg-[#0D7C34] flex items-center justify-center text-white font-black text-xs flex-shrink-0">
                       !
                     </div>
-                    <p className="text-[8.5px] text-[#1B5E20] font-black leading-tight line-clamp-3">
+                    <p className="font-black leading-tight line-clamp-3" style={s('notePill')}>
                       {catDetails.note}
                     </p>
                   </div>
@@ -851,34 +716,22 @@ const AirQuality = () => {
                   >
                     {/* Left: Value */}
                     <div className="w-[125px] text-center border-r border-white/20 flex flex-col justify-center">
-                      <p
-                        className="text-[14px] font-black tracking-wide leading-none"
-                        style={{ color: getContrastColor(activeColor), opacity: 0.85 }}
-                      >
-                        ISPU
+                      <p className="font-black tracking-wide leading-none" style={{ opacity: 0.85, ...s('ispuLbl', { auto: getContrastColor(activeColor) }) }}>
+                        {t('ispuLbl')}
                       </p>
-                      <h2
-                        className="text-[60px] font-black leading-none mt-1.5"
-                        style={{ color: getContrastColor(activeColor) }}
-                      >
+                      <h2 className="font-black leading-none mt-1.5" style={s('ispuVal', { auto: getContrastColor(activeColor) })}>
                         {ispuValue}
                       </h2>
                     </div>
 
                     {/* Right: Category and label info */}
                     <div className="flex-1 pl-4 flex flex-col justify-center">
-                      <h3
-                        className="text-[28px] font-black uppercase leading-tight tracking-tight"
-                        style={{ color: getContrastColor(activeColor) }}
-                      >
+                      <h3 className="font-black uppercase leading-tight tracking-tight" style={s('ispuCat', { auto: getContrastColor(activeColor) })}>
                         {row.kategori.nilai}
                       </h3>
                       <div
-                        className="rounded-md py-1 px-2 mt-1.5 text-[9.5px] font-extrabold tracking-wide text-center"
-                        style={{
-                          backgroundColor: 'rgba(0,0,0,0.15)',
-                          color: getContrastColor(activeColor)
-                        }}
+                        className="rounded-md py-1 px-2 mt-1.5 font-extrabold tracking-wide text-center"
+                        style={{ backgroundColor: 'rgba(0,0,0,0.15)', ...s('ispuMeta', { auto: getContrastColor(activeColor) }) }}
                       >
                         {dominantPollutant.name}  |  {row.waktu}
                       </div>
@@ -889,20 +742,20 @@ const AirQuality = () => {
                   <div className="flex gap-2">
                     {/* PM10 Card */}
                     <div className="bg-white rounded-lg p-1.5 flex-1 shadow-sm border border-gray-100 border-l-[3.5px] border-l-blue-500 h-[48px] flex flex-col justify-center">
-                      <h4 className="text-[9.5px] font-black text-[#0F2C59] leading-none">PM10 (Debu Halus)</h4>
-                      <p className="text-[7.5px] text-slate-500 leading-none mt-1.5">Partikel berukuran ≤ 10 µm</p>
+                      <h4 className="font-black leading-none" style={s('pm10T')}>{t('pm10T')}</h4>
+                      <p className="leading-none mt-1.5" style={s('pm10D')}>{t('pm10D')}</p>
                     </div>
 
                     {/* PM2.5 Card */}
                     <div className="bg-white rounded-lg p-1.5 flex-1 shadow-sm border border-gray-100 border-l-[3.5px] border-l-blue-500 h-[48px] flex flex-col justify-center">
-                      <h4 className="text-[9.5px] font-black text-[#0F2C59] leading-none">PM2.5 (Debu Sangat Halus)</h4>
-                      <p className="text-[7.5px] text-slate-500 leading-none mt-1.5">Partikel berukuran ≤ 2,5 µm</p>
+                      <h4 className="font-black leading-none" style={s('pm25T')}>{t('pm25T')}</h4>
+                      <p className="leading-none mt-1.5" style={s('pm25D')}>{t('pm25D')}</p>
                     </div>
                   </div>
 
                   {/* Legend & Bar Chart Card */}
                   <div className="bg-white rounded-xl p-2.5 shadow-sm border border-gray-100 flex flex-col h-[178px] justify-between">
-                    <span className="text-[9px] font-black text-slate-400 tracking-wider">KATEGORI</span>
+                    <span className="font-black tracking-wider" style={s('katLbl')}>{t('katLbl')}</span>
 
                     <div className="flex gap-2 items-center flex-grow mt-1">
                       {/* Left: Legend stack */}
@@ -910,11 +763,8 @@ const AirQuality = () => {
                         {categoriesList.map((cat, idx) => (
                           <div
                             key={cat.name}
-                            className="text-[6.5px] font-black text-center py-1 rounded text-white relative leading-none border border-black/5"
-                            style={{
-                              backgroundColor: cat.color,
-                              color: cat.textColor
-                            }}
+                            className="font-black text-center py-1 rounded relative leading-none border border-black/5"
+                            style={{ backgroundColor: cat.color, ...s('legend', { auto: cat.textColor }) }}
                           >
                             {cat.name}
                             {arrowIndex === idx && (
@@ -937,20 +787,20 @@ const AirQuality = () => {
                             const barColor = getIspuColor(valNum);
                             return (
                               <div key={p.key} className="flex flex-col items-center flex-1">
-                                <span className="text-[8px] font-extrabold text-slate-800 mb-0.5 leading-none">{p.val}</span>
+                                <span className="font-extrabold mb-0.5 leading-none" style={s('barVal')}>{p.val}</span>
                                 <div className="w-2.5 bg-slate-100 rounded-t h-[65px] flex items-end">
                                   <div
                                     className="w-full rounded-t transition-all duration-500"
                                     style={{ height: `${barHeight}%`, backgroundColor: barColor }}
                                   />
                                 </div>
-                                <span className="text-[8px] font-black text-slate-500 mt-1 leading-none">{p.name}</span>
+                                <span className="font-black mt-1 leading-none" style={s('barName')}>{p.name}</span>
                               </div>
                             );
                           })}
                         </div>
-                        <span className="text-[7.5px] text-slate-400 font-medium tracking-wide mt-1 block">
-                          *ISPU : Indeks Standar Pencemar Udara
+                        <span className="font-medium tracking-wide mt-1 block" style={s('ispuNote')}>
+                          {t('ispuNote')}
                         </span>
                       </div>
                     </div>
@@ -958,8 +808,8 @@ const AirQuality = () => {
 
                   {/* TIPS MENJAGA KESEHATAN Card */}
                   <div className="bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden h-[215px]">
-                    <div className="bg-[#0F2C59] text-white text-[10px] font-black text-center py-1 uppercase tracking-wide">
-                      TIPS MENJAGA KESEHATAN
+                    <div className="bg-[#0F2C59] font-black text-center py-1 uppercase tracking-wide" style={s('tipsHead')}>
+                      {t('tipsHead')}
                     </div>
                     <div className="p-2 flex flex-col justify-between flex-grow min-h-0 text-[12px]">
                       {tipsList.map((tip, idx) => (
@@ -967,8 +817,8 @@ const AirQuality = () => {
                           <div className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center flex-shrink-0 text-xs shadow-sm">
                             {tip.em}
                           </div>
-                          <p className="text-slate-700 leading-snug font-medium line-clamp-2">
-                            {tip.text}
+                          <p className="leading-snug font-medium line-clamp-2" style={s(`tip${idx + 1}`)}>
+                            {t(`tip${idx + 1}`)}
                           </p>
                         </div>
                       ))}
@@ -981,11 +831,11 @@ const AirQuality = () => {
               {/* FOOTER SECTION */}
               <div className="mt-3">
                 <div className="flex justify-between items-end mb-1">
-                  <p className="text-[9px] font-bold opacity-90" style={{ color: taglineColor }}>
-                    Sumber: {row.tipe_text} &amp; ispu.kemenlh.go.id
+                  <p className="font-bold opacity-90" style={s('source')}>
+                    {t('source').replace('{tipe}', String(row.tipe_text ?? ''))}
                   </p>
-                  <p className="font-black italic text-xs flex items-center gap-1" style={{ color: taglineColor }}>
-                    <span>Udara Bersih Untuk Kita Semua 🍃</span>
+                  <p className="font-black italic flex items-center gap-1" style={s('tagline')}>
+                    <span>{t('tagline')}</span>
                   </p>
                 </div>
 
@@ -993,15 +843,15 @@ const AirQuality = () => {
                 <div className="bg-[#0F2C59] text-white rounded-lg p-2 flex flex-col gap-1.5 shadow-md">
                   <div className="flex justify-between items-center">
                     {/* Left text */}
-                    <div className="text-[10px] font-black leading-snug w-[360px] opacity-95">
-                      MARI BERSAMA-SAMA MENJAGA KUALITAS UDARA DENGAN TIDAK MELAKUKAN PEMBAKARAN LAHAN MAUPUN SAMPAH SERTA MENDUKUNG UPAYA PENCEGAHAN KEBAKARAN HUTAN DAN LAHAN.
+                    <div className="font-black leading-snug w-[360px] opacity-95" style={s('appeal')}>
+                      {t('appeal')}
                     </div>
 
                     {/* Right Red 112 Badge */}
                     <div className="bg-red-500 rounded-md p-1 px-3 text-center text-white flex flex-col justify-center flex-shrink-0 w-[150px] shadow">
-                      <span className="text-[6.5px] font-black uppercase opacity-90 tracking-wide leading-none">Call Center Darurat</span>
-                      <span className="text-lg font-black leading-none mt-0.5">112</span>
-                      <span className="text-[6.5px] font-bold opacity-80 leading-none">(Bebas Pulsa)</span>
+                      <span className="font-black uppercase opacity-90 tracking-wide leading-none" style={s('b112a')}>{t('b112a')}</span>
+                      <span className="font-black leading-none mt-0.5" style={s('b112b')}>{t('b112b')}</span>
+                      <span className="font-bold opacity-80 leading-none" style={s('b112c')}>{t('b112c')}</span>
                     </div>
                   </div>
 
@@ -1009,11 +859,10 @@ const AirQuality = () => {
                   <div className="border-t border-white/10 w-full" />
 
                   {/* Bottom Handles */}
-                  <div className="flex justify-between text-[8px] font-black opacity-90 px-1 mt-0.5">
-                    <span>🌐  bpbd.banjarmasinkota.go.id</span>
-                    <span>📸  bpbd_kota_banjarmasin</span>
-                    <span>📩  bpbdk.bjm3@gmail.com</span>
-                    <span>📞  0851-8689-1117</span>
+                  <div className="flex justify-between font-black opacity-90 px-1 mt-0.5 whitespace-pre" style={s('contacts')}>
+                    {(['cWeb', 'cIg', 'cMail', 'cPhone'] as const).filter((k) => t(k)).map((k) => (
+                      <span key={k}>{t(k)}</span>
+                    ))}
                   </div>
                 </div>
               </div>

@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Download, Upload, RefreshCw, Clock } from 'lucide-react';
+import { toPng } from 'html-to-image';
+import {
+  DEFAULT_OVERLAY, makeLogos, useTextFields,
+  type LogoItem, type OverlaySettings, type TextDef,
+} from '../lib/customize';
+import { LogoManager, OverlayEditor, OverlayLayer, Section, TextFieldsEditor } from './shared/Customize';
 import pemkoLogo from '../assets/pemko.png';
 import yaLogo from '../assets/maju-sejahtera.png';
 import bpbdLogo from '../assets/bpbd.png';
@@ -24,23 +30,52 @@ interface WeatherData {
   }>;
 }
 
+const PREVIEW_W = 672;
+const PREVIEW_MIN_H = 838; // 1080 x 1348 setelah diskalakan
+const OUTPUT_W = 1080;
+const DEFAULT_LOGOS = [pemkoLogo, yaLogo, bpbdLogo, logo112];
+
+const WF_TEXT_DEFS: TextDef[] = [
+  { key: 'org1', group: 'Header', label: 'Nama instansi baris 1', text: 'BADAN PENANGGULANGAN BENCANA DAERAH', color: '#1f2937', size: 13 },
+  { key: 'org2', group: 'Header', label: 'Nama instansi baris 2', text: 'KOTA BANJARMASIN', color: '#1f2937', size: 13 },
+  { key: 'title', group: 'Header', label: 'Judul', text: 'PRAKIRAAN CUACA', color: '#111827', size: 42 },
+  { key: 'subtitle', group: 'Header', label: 'Subjudul (diikuti tanggal otomatis)', text: 'KOTA BANJARMASIN', color: '#1f2937', size: 16 },
+
+  { key: 'cTime', group: 'Kartu cuaca', label: 'Jam (+ zona waktu)', text: 'WITA', color: '#1f2937', size: 12 },
+  { key: 'cIcon', group: 'Kartu cuaca', label: 'Ikon cuaca', size: 38 },
+  { key: 'cTemp', group: 'Kartu cuaca', label: 'Suhu', color: '#111827', size: 28 },
+  { key: 'cDesc', group: 'Kartu cuaca', label: 'Deskripsi cuaca', color: '#374151', size: 12 },
+  { key: 'cDetail', group: 'Kartu cuaca', label: 'Detail (kelembapan, angin, jarak pandang)', color: '#4b5563', size: 11 },
+
+  { key: 'source', group: 'Peringatan', label: 'Sumber data', text: 'Sumber Data : BMKG Indonesia', color: '#ffffff', size: 12 },
+  { key: 'warnTitle', group: 'Peringatan', label: 'Judul peringatan', text: 'PERINGATAN :', color: '#ffffff', size: 18 },
+  { key: 'warnText', group: 'Peringatan', label: 'Teks peringatan', text: 'DIPERKIRAKAN CUACA BANJARMASIN DAN SEKITARNYA AKAN CERAH BERAWAN', multiline: true, color: '#ffffff', size: 14 },
+  { key: 'appeal', group: 'Peringatan', label: 'Kotak himbauan (kuning)', multiline: true, color: '#111827', size: 13,
+    text: 'HIMBAUAN AGAR TETAP WASPADA KETIKA BERAKTIVITAS DI LUAR RUANGAN\nDAN SELALU PANTAU PERKEMBANGAN CUACA TERKINI !' },
+
+  { key: 'footer', group: 'Footer & Kontak', label: 'Teks footer (warna & ukuran semua item)', color: '#ffffff', size: 10.5 },
+  { key: 'fIg', group: 'Footer & Kontak', label: 'Instagram', text: 'bpbd_kota_banjarmasin' },
+  { key: 'fPhone', group: 'Footer & Kontak', label: 'Telepon', text: '085186891117' },
+  { key: 'fMail', group: 'Footer & Kontak', label: 'Email', text: 'bpbdk.bjm3@gmail.com' },
+  { key: 'fWeb', group: 'Footer & Kontak', label: 'Website', text: 'bpbd.banjarmasinkota.go.id' },
+];
+
 const WeatherForecast = () => {
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
-  const [gridSize, setGridSize] = useState(50);
+  const [gridSize, setGridSize] = useState(46);
   const [showGrid, setShowGrid] = useState(true);
-  const [logos, setLogos] = useState<(string | null)[]>([pemkoLogo, yaLogo, bpbdLogo, logo112]);
-  const [gradientEnabled, setGradientEnabled] = useState(false);
-  const [gradientColor, setGradientColor] = useState('#000000');
-  const [gradientOpacity, setGradientOpacity] = useState(50);
+  const [logos, setLogos] = useState<LogoItem[]>(() => makeLogos(DEFAULT_LOGOS));
+  const [logoSize, setLogoSize] = useState(50);
+  const [overlay, setOverlay] = useState<OverlaySettings>(DEFAULT_OVERLAY);
   const [startHour, setStartHour] = useState(12);
   const [hourInterval, setHourInterval] = useState(3);
-  const [warningText, setWarningText] = useState('DIPERKIRAKAN CUACA BANJARMASIN DAN SEKITARNYA AKAN CERAH BERAWAN');
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const tf = useTextFields(WF_TEXT_DEFS);
+  const { t, s } = tf;
+  const [isDownloading, setIsDownloading] = useState(false);
+  const previewRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const logoInputRefs = useRef<(HTMLInputElement | null)[]>([]);
-
   const fetchWeatherData = useCallback(async () => {
     try {
       setLoading(true);
@@ -55,7 +90,6 @@ const WeatherForecast = () => {
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchWeatherData();
   }, [fetchWeatherData]);
 
@@ -69,34 +103,6 @@ const WeatherForecast = () => {
         }
       };
       reader.readAsDataURL(file);
-    }
-  };
-
-  const handleLogoUpload = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          const newLogos = [...logos];
-          newLogos[index] = event.target.result as string;
-          setLogos(newLogos);
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  const addLogoSlot = () => {
-    if (logos.length < 5) {
-      setLogos([...logos, null]);
-    }
-  };
-
-  const removeLogoSlot = (index: number) => {
-    if (index >= 3) {
-      const newLogos = logos.filter((_, i) => i !== index);
-      setLogos(newLogos);
     }
   };
 
@@ -241,400 +247,28 @@ const WeatherForecast = () => {
   };
 
   const downloadImage = async () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const width = 1080;
-    const height = 1348;
-
-    canvas.width = width;
-    canvas.height = height;
-
-    // Draw background
-    if (backgroundImage) {
-      const img = new Image();
-      img.src = backgroundImage;
-      await new Promise<void>((resolve) => {
-        img.onload = () => {
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve();
-        };
+    if (!previewRef.current) return;
+    setIsDownloading(true);
+    try {
+      const node = previewRef.current;
+      const height = node.offsetHeight;
+      const dataUrl = await toPng(node, {
+        pixelRatio: OUTPUT_W / PREVIEW_W,
+        cacheBust: true,
+        width: PREVIEW_W,
+        height,
+        style: { borderRadius: '0', border: 'none', boxShadow: 'none', margin: '0', transform: 'none' },
       });
-    } else {
-      const gradient = ctx.createLinearGradient(0, 0, 0, height);
-      gradient.addColorStop(0, '#87CEEB');
-      gradient.addColorStop(1, '#98D8E8');
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
+      const link = document.createElement('a');
+      link.download = `prakiraan-cuaca-${new Date().toISOString().split('T')[0]}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error('Download failed:', err);
+      alert('Gagal mengunduh gambar. Silakan coba lagi.');
+    } finally {
+      setIsDownloading(false);
     }
-
-    // Apply blur effect overlay
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-    ctx.fillRect(0, 0, width, height);
-
-    // Apply gradient overlay if enabled
-    if (gradientEnabled) {
-      const gradient = ctx.createLinearGradient(0, 0, 0, height);
-      const r = parseInt(gradientColor.slice(1, 3), 16);
-      const g = parseInt(gradientColor.slice(3, 5), 16);
-      const b = parseInt(gradientColor.slice(5, 7), 16);
-      const opacity = gradientOpacity / 100;
-
-      gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${opacity})`);
-      gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, width, height);
-    }
-
-    // Draw grid overlay if enabled
-    if (showGrid && backgroundImage) {
-      ctx.strokeStyle = 'rgba(150, 150, 150, 0.3)';
-      ctx.lineWidth = 1;
-      ctx.setLineDash([10, 10]);
-
-      // Vertical lines
-      for (let x = 0; x < width; x += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-        ctx.stroke();
-      }
-
-      // Horizontal lines
-      for (let y = 0; y < height; y += gridSize) {
-        ctx.beginPath();
-        ctx.moveTo(0, y);
-        ctx.lineTo(width, y);
-        ctx.stroke();
-      }
-
-      ctx.setLineDash([]);
-    }
-
-    // Draw logos
-    const logoY = 60;
-    const logoSize = 80;
-    const logoGap = 20;
-    const totalLogoWidth = (logoSize * logos.length) + (logoGap * (logos.length - 1));
-    const logoStartX = (width - totalLogoWidth) / 2;
-
-    for (let i = 0; i < logos.length; i++) {
-      const xPos = logoStartX + i * (logoSize + logoGap);
-
-      if (logos[i]) {
-        // Draw uploaded logo with auto-resize
-        const logoImg = new Image();
-        logoImg.src = logos[i] as string;
-        await new Promise<void>((resolve) => {
-          logoImg.onload = () => {
-            // Calculate aspect ratio and fit within logoSize
-            const aspectRatio = logoImg.width / logoImg.height;
-            let drawWidth = logoSize;
-            let drawHeight = logoSize;
-            let offsetX = 0;
-            let offsetY = 0;
-
-            if (aspectRatio > 1) {
-              // Wider than tall
-              drawHeight = logoSize / aspectRatio;
-              offsetY = (logoSize - drawHeight) / 2;
-            } else {
-              // Taller than wide
-              drawWidth = logoSize * aspectRatio;
-              offsetX = (logoSize - drawWidth) / 2;
-            }
-
-            ctx.drawImage(logoImg, xPos + offsetX, logoY + offsetY, drawWidth, drawHeight);
-            resolve();
-          };
-          if (logoImg.complete) {
-            const aspectRatio = logoImg.width / logoImg.height;
-            let drawWidth = logoSize;
-            let drawHeight = logoSize;
-            let offsetX = 0;
-            let offsetY = 0;
-
-            if (aspectRatio > 1) {
-              drawHeight = logoSize / aspectRatio;
-              offsetY = (logoSize - drawHeight) / 2;
-            } else {
-              drawWidth = logoSize * aspectRatio;
-              offsetX = (logoSize - drawWidth) / 2;
-            }
-
-            ctx.drawImage(logoImg, xPos + offsetX, logoY + offsetY, drawWidth, drawHeight);
-            resolve();
-          }
-        });
-      } else {
-        // Draw default colored circle
-        const colors = ['#FFD700', '#FF8C00', '#4169E1', '#32CD32', '#FF1493', '#00CED1'];
-        ctx.fillStyle = colors[i % colors.length];
-        ctx.beginPath();
-        ctx.arc(xPos + logoSize / 2, logoY + logoSize / 2, logoSize / 2, 0, Math.PI * 2);
-        ctx.fill();
-      }
-    }
-
-    // Header text
-    ctx.fillStyle = '#2C3E50';
-    ctx.font = '28px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('BADAN PENANGGULANGAN BENCANA DAERAH', width / 2, 200);
-    ctx.fillText('KOTA BANJARMASIN', width / 2, 235);
-
-    // Main title
-    ctx.font = 'bold 75px Arial';
-    ctx.fillStyle = '#2C3E50';
-    ctx.fillText('PRAKIRAAN CUACA', width / 2, 330);
-
-    const forecasts = getTodayForecasts();
-    const firstForecastDate = forecasts[0]?.local_datetime || new Date().toISOString();
-
-    // Subtitle with date
-    ctx.font = '32px Arial';
-    ctx.fillStyle = '#2C3E50';
-    ctx.fillText(`KOTA BANJARMASIN, ${formatDateIndonesian(firstForecastDate)}`, width / 2, 380);
-
-    // Weather cards
-    const cardWidth = 300;
-    const cardHeight = 310;
-    const gapX = 40;
-    const gapY = 30;
-    const startY = 415;
-
-    // Menghitung formasi posisi grid kartu
-    const cardPositions: { x: number, y: number }[] = [];
-    if (forecasts.length === 4) {
-      // Formasi 2x2
-      for (let i = 0; i < 4; i++) {
-        const row = Math.floor(i / 2);
-        const col = i % 2;
-        const rowWidth = 2 * cardWidth + gapX;
-        const startXRow = (width - rowWidth) / 2;
-        cardPositions.push({ x: startXRow + col * (cardWidth + gapX), y: startY + row * (cardHeight + gapY) });
-      }
-    } else if (forecasts.length === 5) {
-      // Formasi 3 atas, 2 tengah bawah
-      for (let i = 0; i < 5; i++) {
-        const row = i < 3 ? 0 : 1;
-        const col = i < 3 ? i : (i - 3);
-        const limitInRow = i < 3 ? 3 : 2;
-        const rowWidth = limitInRow * cardWidth + (limitInRow - 1) * gapX;
-        const startXRow = (width - rowWidth) / 2;
-        cardPositions.push({ x: startXRow + col * (cardWidth + gapX), y: startY + row * (cardHeight + gapY) });
-      }
-    } else {
-      // Default / Formasi normal
-      let totalAssigned = 0;
-      let currentRow = 0;
-      while (totalAssigned < forecasts.length) {
-        const countInRow = Math.min(3, forecasts.length - totalAssigned);
-        const rowWidth = countInRow * cardWidth + (countInRow - 1) * gapX;
-        const startXRow = (width - rowWidth) / 2;
-        for (let col = 0; col < countInRow; col++) {
-          cardPositions.push({ x: startXRow + col * (cardWidth + gapX), y: startY + currentRow * (cardHeight + gapY) });
-        }
-        totalAssigned += countInRow;
-        currentRow++;
-      }
-    }
-
-    forecasts.forEach((forecast, index) => {
-      const { x, y } = cardPositions[index];
-
-      // Card background with blur
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.1)';
-      ctx.shadowBlur = 15;
-      ctx.beginPath();
-      ctx.roundRect(x, y, cardWidth, cardHeight, 20);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // Time
-      ctx.fillStyle = '#2C3E50';
-      ctx.font = 'bold 24px Arial';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${formatTime(forecast.datetime)} WITA`, x + cardWidth / 2, y + 35);
-
-      // Weather icon
-      ctx.font = '80px Arial';
-      ctx.fillText(getWeatherIcon(forecast.weather), x + cardWidth / 2, y + 115);
-
-      // Temperature
-      ctx.font = 'bold 60px Arial';
-      ctx.fillStyle = '#2C3E50';
-      ctx.fillText(`${forecast.t}°C`, x + cardWidth / 2, y + 180);
-
-      // Weather description
-      ctx.font = '20px Arial';
-      ctx.fillStyle = '#546E7A';
-      ctx.fillText(forecast.weather_desc, x + cardWidth / 2, y + 215);
-
-      // Weather details with icons
-      ctx.font = '18px Arial';
-      ctx.textAlign = 'left';
-      ctx.fillStyle = '#546E7A';
-
-      // Humidity
-      ctx.fillText('💧', x + 20, y + 260);
-      ctx.fillText(`${forecast.hu}%`, x + 50, y + 260);
-
-      // Wind speed
-      ctx.fillText('💨', x + 20, y + 290);
-      ctx.fillText(`${Math.round(forecast.ws)} km/jam`, x + 50, y + 290);
-
-      // Wind direction
-      ctx.fillText('🧭', x + 160, y + 260);
-      ctx.fillText(translateWindDirection(forecast.wd_to), x + 190, y + 260);
-
-      // Visibility
-      ctx.fillText('👁️', x + 160, y + 290);
-      ctx.fillText(forecast.vs_text, x + 190, y + 290);
-    });
-
-    // Warning section
-    let maxCardY = startY;
-    if (cardPositions.length > 0) {
-      maxCardY = Math.max(...cardPositions.map(p => p.y));
-    }
-    const warningY = maxCardY + cardHeight + 35; // increased top padding (from +15 to +35)
-
-    // Sumber Data text
-    ctx.fillStyle = '#FFFFFF';
-    ctx.shadowColor = 'rgba(0,0,0,0.4)';
-    ctx.shadowBlur = 4;
-    ctx.font = 'italic 18px Arial';
-    ctx.textAlign = 'right';
-    ctx.fillText('Sumber Data : BMKG Indonesia', width - 60, warningY - 5); // adjusted y offset
-    ctx.shadowBlur = 0; // reset shadow
-
-    // Warning title
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = 'bold 28px Arial';
-    ctx.textAlign = 'center';
-    ctx.fillText('PERINGATAN :', width / 2, warningY + 20);
-
-    // Warning text with Multi-line Support
-    ctx.font = '22px Arial';
-    const warningTextLines = [];
-    const words = warningText.split(' ');
-    let currentLine = '';
-    const maxWidth = width - 120; // 60px padding on each side
-
-    for (let i = 0; i < words.length; i++) {
-      const testLine = currentLine + words[i] + ' ';
-      const metrics = ctx.measureText(testLine);
-      if (metrics.width > maxWidth && i > 0) {
-        warningTextLines.push(currentLine);
-        currentLine = words[i] + ' ';
-      } else {
-        currentLine = testLine;
-      }
-    }
-    warningTextLines.push(currentLine);
-
-    warningTextLines.forEach((line, index) => {
-      ctx.fillText(line.trim(), width / 2, warningY + 55 + (index * 30));
-    });
-
-    // Yellow warning box
-    const yellowBoxY = warningY + 70 + ((warningTextLines.length - 1) * 30);
-    ctx.fillStyle = '#FFD700';
-    ctx.fillRect(60, yellowBoxY, width - 120, 80);
-
-    ctx.fillStyle = '#2C3E50';
-    ctx.font = 'bold 20px Arial';
-    ctx.fillText('HIMBAUAN AGAR TETAP WASPADA KETIKA BERAKTIVITAS DI LUAR RUANGAN.', width / 2, yellowBoxY + 35);
-    ctx.fillText('DAN SELALU PANTAU PERKEMBANGAN CUACA TERKINI !', width / 2, yellowBoxY + 65);
-
-    // Footer - Dark gray background
-    const footerY = height - 60;
-    ctx.fillStyle = '#3A3A3A';
-    ctx.fillRect(0, footerY, width, 60);
-
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '13px Arial';
-    ctx.textAlign = 'left';
-
-    const footerItemY = footerY + 35;
-    const iconSize = 22;
-    const spacing = 175;
-
-    // Instagram icon (circle with camera)
-    let xPos = 40;
-    ctx.fillStyle = '#FFFFFF';
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(xPos, footerItemY - iconSize / 2 - 6, iconSize, iconSize, 5);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(xPos + iconSize / 2, footerItemY - 6, 6, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.fillText('bpbd_kota_banjarmasin', xPos + iconSize + 8, footerItemY);
-
-    // // Facebook icon (f in circle)
-    // xPos += spacing;
-    // ctx.beginPath();
-    // ctx.arc(xPos + iconSize / 2, footerItemY - 6, iconSize / 2, 0, Math.PI * 2);
-    // ctx.stroke();
-    // ctx.font = 'bold 14px Arial';
-    // ctx.fillText('f', xPos + iconSize / 2 - 3, footerItemY - 1);
-    // ctx.font = '13px Arial';
-    // ctx.fillText('bpbd banjarmasin', xPos + iconSize + 8, footerItemY);
-
-    // Phone icon
-    xPos += spacing;
-    ctx.beginPath();
-    ctx.arc(xPos + 6, footerItemY - 10, 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(xPos + 6, footerItemY - 4, 2, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.roundRect(xPos + 1, footerItemY - 16, 10, 20, 2);
-    ctx.stroke();
-    ctx.fillText('0851-8689-1117', xPos + iconSize + 3, footerItemY);
-
-    // Email icon (envelope)
-    xPos += spacing - 10;
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    ctx.rect(xPos, footerItemY - 13, 20, 13);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(xPos, footerItemY - 13);
-    ctx.lineTo(xPos + 10, footerItemY - 6);
-    ctx.lineTo(xPos + 20, footerItemY - 13);
-    ctx.stroke();
-    ctx.fillText('bpbdk.bjm3@gmail.com', xPos + 26, footerItemY);
-
-    // Website icon (globe)
-    xPos += spacing + 15;
-    ctx.beginPath();
-    ctx.arc(xPos + 10, footerItemY - 6, 10, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(xPos + 10, footerItemY - 6, 3, 10, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(xPos, footerItemY - 6);
-    ctx.lineTo(xPos + 20, footerItemY - 6);
-    ctx.stroke();
-    ctx.fillText('bpbd.banjarmasinkota.go.id', xPos + 26, footerItemY);
-
-    // Download
-    const link = document.createElement('a');
-    link.download = `prakiraan-cuaca-${new Date().toISOString().split('T')[0]}.png`;
-    link.href = canvas.toDataURL('image/png', 1.0);
-    link.click();
   };
 
   if (loading) {
@@ -696,10 +330,11 @@ const WeatherForecast = () => {
               </button>
               <button
                 onClick={downloadImage}
-                className="w-full sm:w-auto sm:flex-none flex justify-center items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
+                disabled={isDownloading}
+                className="w-full sm:w-auto sm:flex-none flex justify-center items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-green-600 hover:bg-green-700 disabled:opacity-60 disabled:cursor-wait text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
               >
-                <Download className="w-4 h-4 sm:w-5 sm:h-5" />
-                Download
+                {isDownloading ? <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" /> : <Download className="w-4 h-4 sm:w-5 sm:h-5" />}
+                {isDownloading ? 'Mengunduh...' : 'Download'}
               </button>
             </div>
           </div>
@@ -737,50 +372,9 @@ const WeatherForecast = () => {
             </div>
           )}
 
-          {/* Gradient Overlay Settings */}
-          {backgroundImage && (
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="space-y-3">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={gradientEnabled}
-                    onChange={(e) => setGradientEnabled(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 rounded"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Overlay Gradient (Top → Bottom)</span>
-                </label>
-
-                {gradientEnabled && (
-                  <div className="flex items-center gap-4 flex-wrap ml-6">
-                    <div className="flex items-center gap-2">
-                      <label className="text-sm font-medium text-gray-700">Warna:</label>
-                      <input
-                        type="color"
-                        value={gradientColor}
-                        onChange={(e) => setGradientColor(e.target.value)}
-                        className="w-10 h-8 rounded cursor-pointer"
-                      />
-                      <span className="text-xs text-gray-600">{gradientColor}</span>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <label className="text-sm font-medium text-gray-700">Opacity:</label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={gradientOpacity}
-                        onChange={(e) => setGradientOpacity(Number(e.target.value))}
-                        className="w-32"
-                      />
-                      <span className="text-sm text-gray-600 w-12">{gradientOpacity}%</span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          <Section title="🌗 Overlay (jenis, arah & warna)">
+            <OverlayEditor value={overlay} onChange={setOverlay} />
+          </Section>
 
           {/* Settings Waktu Prakiraan */}
           <div className="mt-4 pt-4 border-t border-gray-200">
@@ -860,75 +454,13 @@ const WeatherForecast = () => {
             </div>
           </div>
 
-          {/* Logo Upload Section */}
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-bold text-gray-800">📸 Logo Header</h3>
-              <button
-                onClick={addLogoSlot}
-                className="text-xs px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white rounded-md transition-colors"
-              >
-                + Tambah Logo
-              </button>
-            </div>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-              {logos.map((logo, index) => (
-                <div key={index} className="relative">
-                  <div
-                    onClick={() => logoInputRefs.current[index]?.click()}
-                    className="cursor-pointer border-2 border-dashed border-gray-300 hover:border-blue-500 rounded-lg p-3 flex flex-col items-center justify-center h-24 transition-colors bg-gray-50 hover:bg-gray-100"
-                  >
-                    {logo ? (
-                      <img
-                        src={logo}
-                        alt={`Logo ${index + 1}`}
-                        className="max-w-12 max-h-12 object-contain"
-                      />
-                    ) : (
-                      <div className={`w-12 h-12 rounded-full ${index === 0 ? 'bg-yellow-400' :
-                        index === 1 ? 'bg-orange-500' :
-                          index === 2 ? 'bg-blue-600' :
-                            index === 3 ? 'bg-green-500' :
-                              index === 4 ? 'bg-pink-500' :
-                                'bg-cyan-500'
-                        }`}></div>
-                    )}
-                    <span className="text-xs text-gray-600 mt-1">Logo {index + 1}</span>
-                  </div>
-                  {index >= 3 && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeLogoSlot(index);
-                      }}
-                      className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full text-xs flex items-center justify-center"
-                    >
-                      ×
-                    </button>
-                  )}
-                  <input
-                    ref={(el) => { logoInputRefs.current[index] = el; }}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleLogoUpload(index, e)}
-                    className="hidden"
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
+          <Section title="📸 Logo Header">
+            <LogoManager logos={logos} onChange={setLogos} defaults={DEFAULT_LOGOS} size={logoSize} onSizeChange={setLogoSize} sizeMin={32} sizeMax={96} />
+          </Section>
 
-          {/* Warning Text Setting */}
-          <div className="mt-4 pt-4 border-t border-gray-200">
-            <h3 className="text-sm font-bold text-gray-800 mb-3">⚠️ Teks Peringatan</h3>
-            <input
-              type="text"
-              value={warningText}
-              onChange={(e) => setWarningText(e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-              placeholder="Masukkan teks peringatan..."
-            />
-          </div>
+          <Section title="✏️ Teks, Kontak & Footer (isi, warna, ukuran font)">
+            <TextFieldsEditor fields={tf} />
+          </Section>
 
           <input
             ref={fileInputRef}
@@ -939,13 +471,15 @@ const WeatherForecast = () => {
           />
         </div>
 
-        {/* Preview */}
+        {/* Preview: 672px → unduhan 1080px (min 1080x1348) */}
         <div className="w-full overflow-x-auto pb-6">
           <div
-            className="relative rounded-xl shadow-2xl overflow-hidden mx-auto z-0"
+            ref={previewRef}
+            className="relative rounded-xl shadow-2xl overflow-hidden mx-auto z-0 flex flex-col"
             style={{
-              minWidth: '672px',
-              maxWidth: '672px',
+              minWidth: `${PREVIEW_W}px`,
+              maxWidth: `${PREVIEW_W}px`,
+              minHeight: `${PREVIEW_MIN_H}px`,
               backgroundImage: backgroundImage ? `url(${backgroundImage})` : 'linear-gradient(to bottom, #87CEEB, #98D8E8)',
               backgroundSize: 'cover',
               backgroundPosition: 'center'
@@ -954,94 +488,49 @@ const WeatherForecast = () => {
             {/* Blur overlay */}
             <div className="absolute inset-0 backdrop-blur-sm bg-white/10 z-0"></div>
 
-            {/* Gradient overlay */}
-            {backgroundImage && gradientEnabled && (
-              <div
-                className="absolute inset-0 pointer-events-none z-10"
-                style={{
-                  pointerEvents: 'none',
-                  background: `linear-gradient(to bottom, ${gradientColor}${Math.round(gradientOpacity * 2.55).toString(16).padStart(2, '0')}, transparent)`
-                }}
-              />
-            )}
+            {/* Overlay warna */}
+            <OverlayLayer value={overlay} className="z-10" />
 
             {/* Grid overlay */}
             {backgroundImage && showGrid && (
               <div
                 className="absolute inset-0 pointer-events-none z-10"
                 style={{
-                  pointerEvents: 'none',
                   backgroundImage: `
-          repeating-linear-gradient(
-          0deg,
-          transparent,
-          transparent ${gridSize - 1}px,
-          rgba(150, 150, 150, 0.3) ${gridSize - 1}px,
-          rgba(150, 150, 150, 0.3) ${gridSize}px
-          ),
-          repeating-linear-gradient(
-          90deg,
-          transparent,
-          transparent ${gridSize - 1}px,
-          rgba(150, 150, 150, 0.3) ${gridSize - 1}px,
-          rgba(150, 150, 150, 0.3) ${gridSize}px
-          )
+          repeating-linear-gradient(0deg, transparent, transparent ${gridSize - 1}px, rgba(150, 150, 150, 0.3) ${gridSize - 1}px, rgba(150, 150, 150, 0.3) ${gridSize}px),
+          repeating-linear-gradient(90deg, transparent, transparent ${gridSize - 1}px, rgba(150, 150, 150, 0.3) ${gridSize - 1}px, rgba(150, 150, 150, 0.3) ${gridSize}px)
           `,
                   backgroundSize: `${gridSize}px ${gridSize}px`
                 }}
-              >
-                <svg width="100%" height="100%" style={{ position: 'absolute', top: 0, left: 0 }}>
-                  <defs>
-                    <pattern id="grid" width={gridSize} height={gridSize} patternUnits="userSpaceOnUse">
-                      <path
-                        d={`M ${gridSize} 0 L 0 0 0 ${gridSize}`}
-                        fill="none"
-                        stroke="rgba(150, 150, 150, 0.3)"
-                        strokeWidth="1"
-                        strokeDasharray="10, 10"
-                      />
-                    </pattern>
-                  </defs>
-                  <rect width="100%" height="100%" fill="url(#grid)" />
-                </svg>
-              </div>
+              />
             )}
 
-            <div className="relative p-8 z-20">
+            <div className="relative px-7 pt-5 pb-3 z-20 flex flex-col flex-1">
               {/* Header Section */}
-              <div className="text-center mb-6">
-                {/* Logo placeholders */}
-                <div className="flex justify-center gap-4 mb-6">
-                  {logos.map((logo, index) => (
-                    <div key={index} className="relative w-16 h-16 flex items-center justify-center">
-                      {logo ? (
-                        <img
-                          src={logo}
-                          alt={`Logo ${index + 1}`}
-                          className="max-w-full max-h-full object-contain shadow-lg"
-                        />
-                      ) : (
-                        <div className={`w-16 h-16 rounded-full shadow-lg ${index === 0 ? 'bg-yellow-400' :
-                          index === 1 ? 'bg-orange-500' :
-                            index === 2 ? 'bg-blue-600' :
-                              index === 3 ? 'bg-green-500' :
-                                index === 4 ? 'bg-pink-500' :
-                                  'bg-cyan-500'
-                          }`}></div>
-                      )}
-                    </div>
-                  ))}
-                </div>
+              <div className="text-center mb-3">
+                {logos.length > 0 && (
+                  <div className="flex justify-center items-center gap-4 mb-3">
+                    {logos.map((logo, index) => (
+                      <img
+                        key={logo.id}
+                        src={logo.src}
+                        alt={`Logo ${index + 1}`}
+                        className="object-contain"
+                        style={{ height: logoSize, maxWidth: Math.floor((PREVIEW_W - 56 - (logos.length - 1) * 16) / logos.length) }}
+                      />
+                    ))}
+                  </div>
+                )}
 
-                <h2 className="text-sm font-bold text-gray-800 mb-1">BADAN PENANGGULANGAN BENCANA DAERAH</h2>
-                <h2 className="text-sm font-bold text-gray-800 mb-4">KOTA BANJARMASIN</h2>
+                {t('org1') && <h2 className="font-bold leading-tight mb-0.5" style={s('org1')}>{t('org1')}</h2>}
+                {t('org2') && <h2 className="font-bold leading-tight mb-2" style={s('org2')}>{t('org2')}</h2>}
 
-                <h1 className="text-5xl font-black text-gray-900 mb-2">PRAKIRAAN CUACA</h1>
-                <p className="text-base font-semibold text-gray-800">KOTA BANJARMASIN, {formatDateIndonesian(firstForecastDate)}</p>
+                <h1 className="font-black mb-1 leading-tight" style={s('title')}>{t('title')}</h1>
+                <p className="font-semibold" style={s('subtitle')}>{t('subtitle') ? `${t('subtitle')}, ` : ''}{formatDateIndonesian(firstForecastDate)}</p>
               </div>
 
               {/* Weather Cards Grid */}
-              <div className="flex flex-col gap-3 mb-6 items-center w-full">
+              <div className="flex flex-col gap-2.5 mb-3 items-center w-full">
                 {(forecasts.length === 4
                   ? [forecasts.slice(0, 2), forecasts.slice(2, 4)]
                   : forecasts.length === 5
@@ -1050,20 +539,20 @@ const WeatherForecast = () => {
                       ? [forecasts.slice(0, 3), forecasts.slice(3, 6)]
                       : [forecasts]
                 ).map((row, rowIndex) => (
-                  <div key={rowIndex} className="flex justify-center gap-3 w-full">
+                  <div key={rowIndex} className="flex justify-center gap-2.5 w-full">
                     {row.map((forecast, index) => (
                       <div
                         key={`${rowIndex}-${index}`}
-                        className="bg-white/85 backdrop-blur-sm rounded-2xl p-4 shadow-lg flex-shrink-0"
+                        className="bg-white/85 backdrop-blur-sm rounded-2xl px-3 py-2.5 shadow-lg flex-shrink-0"
                         style={{ width: 'calc(33.333% - 8px)', minWidth: '150px' }}
                       >
                         <div className="text-center">
-                          <p className="font-bold text-gray-800 text-xs mb-2">{formatTime(forecast.datetime)} WITA</p>
-                          <div className="text-5xl mb-2">{getWeatherIcon(forecast.weather)}</div>
-                          <p className="text-3xl font-bold text-gray-900">{forecast.t}°C</p>
-                          <p className="text-xs text-gray-700 mb-3">{forecast.weather_desc}</p>
+                          <p className="font-bold mb-1" style={s('cTime')}>{formatTime(forecast.datetime)} {t('cTime')}</p>
+                          <div className="mb-1 leading-none" style={s('cIcon')}>{getWeatherIcon(forecast.weather)}</div>
+                          <p className="font-bold" style={s('cTemp')}>{forecast.t}°C</p>
+                          <p className="mb-1.5" style={s('cDesc')}>{forecast.weather_desc}</p>
 
-                          <div className="space-y-1 text-xs text-gray-600">
+                          <div className="space-y-0.5" style={s('cDetail')}>
                             <div className="flex items-center justify-between px-2">
                               <span>💧 {forecast.hu}%</span>
                               <span>💨 {Math.round(forecast.ws)} km/jam</span>
@@ -1081,68 +570,63 @@ const WeatherForecast = () => {
               </div>
 
               {/* Warning Section */}
-              <div className="text-center mb-6 px-4">
-                <h3 className="text-white font-bold text-lg mb-2 drop-shadow-lg">PERINGATAN :</h3>
-                <p className="text-white text-sm mb-3 drop-shadow-lg whitespace-pre-wrap break-words px-2 mx-auto max-w-full">
-                  {warningText}
-                </p>
-                <div className="bg-yellow-400 rounded-lg p-4 shadow-lg w-full max-w-[95%] mx-auto">
-                  <p className="text-gray-900 font-bold text-sm leading-relaxed">
-                    HIMBAUAN AGAR TETAP WASPADA KETIKA BERAKTIVITAS DI LUAR RUANGAN<br />
-                    DAN SELALU PANTAU PERKEMBANGAN CUACA TERKINI !
+              <div className="text-center mb-3 px-2 mt-auto">
+                {t('source') && <p className="italic text-right drop-shadow-lg mb-1" style={s('source')}>{t('source')}</p>}
+                {t('warnTitle') && <h3 className="font-bold mb-1 drop-shadow-lg" style={s('warnTitle')}>{t('warnTitle')}</h3>}
+                {t('warnText') && (
+                  <p className="mb-2 drop-shadow-lg whitespace-pre-wrap break-words px-2 mx-auto max-w-full" style={s('warnText')}>
+                    {t('warnText')}
                   </p>
-                </div>
+                )}
+                {t('appeal') && (
+                  <div className="bg-yellow-400 rounded-lg px-4 py-2.5 shadow-lg w-full max-w-[95%] mx-auto">
+                    <p className="font-bold leading-relaxed whitespace-pre-line" style={s('appeal')}>{t('appeal')}</p>
+                  </div>
+                )}
               </div>
 
               {/* Footer */}
-              <div className="bg-gray-700 rounded-lg p-2">
-                <div className="flex items-center justify-between text-xs text-white">
-                  {/* Instagram */}
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-5 h-5 border-2 border-white rounded-md flex items-center justify-center">
-                      <div className="w-2.5 h-2.5 border-2 border-white rounded-full"></div>
+              <div className="bg-gray-700 rounded-lg px-2 py-1.5">
+                <div className="flex items-center justify-center flex-wrap gap-x-3 gap-y-1" style={s('footer')}>
+                  {t('fIg') && (
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-5 h-5 border-2 rounded-md flex items-center justify-center" style={{ borderColor: 'currentColor' }}>
+                        <div className="w-2.5 h-2.5 border-2 rounded-full" style={{ borderColor: 'currentColor' }}></div>
+                      </div>
+                      <span>{t('fIg')}</span>
                     </div>
-                    <span className="text-xs">bpbd_kota_banjarmasin</span>
-                  </div>
-
-                  {/* Facebook */}
-                  {/* <div className="flex items-center gap-1.5">
-                    <div className="w-5 h-5 border-2 border-white rounded-full flex items-center justify-center">
-                      <span className="font-bold text-xs">f</span>
+                  )}
+                  {t('fPhone') && (
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-5 h-5 flex items-center justify-center">
+                        <div className="w-3 h-5 border-2 rounded" style={{ borderColor: 'currentColor' }}></div>
+                      </div>
+                      <span>{t('fPhone')}</span>
                     </div>
-                    <span className="text-xs">bpbd banjarmasin</span>
-                  </div> */}
-
-                  {/* Phone */}
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-5 h-5 flex items-center justify-center">
-                      <div className="w-3 h-5 border-2 border-white rounded"></div>
+                  )}
+                  {t('fMail') && (
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-5 h-5 flex items-center justify-center">
+                        <svg width="18" height="13" viewBox="0 0 18 13" fill="none" stroke="currentColor" strokeWidth="2">
+                          <rect x="1" y="1" width="16" height="11" />
+                          <path d="M1 1 L9 7 L17 1" />
+                        </svg>
+                      </div>
+                      <span>{t('fMail')}</span>
                     </div>
-                    <span className="text-xs">085186891117</span>
-                  </div>
-
-                  {/* Email */}
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-5 h-5 flex items-center justify-center">
-                      <svg width="18" height="13" viewBox="0 0 18 13" fill="none" className="stroke-white stroke-2">
-                        <rect x="1" y="1" width="16" height="11" />
-                        <path d="M1 1 L9 7 L17 1" />
-                      </svg>
+                  )}
+                  {t('fWeb') && (
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-5 h-5 flex items-center justify-center">
+                        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="9" cy="9" r="7" />
+                          <ellipse cx="9" cy="9" rx="2.5" ry="7" />
+                          <line x1="2" y1="9" x2="16" y2="9" />
+                        </svg>
+                      </div>
+                      <span>{t('fWeb')}</span>
                     </div>
-                    <span className="text-xs">bpbdk.bjm3@gmail.com</span>
-                  </div>
-
-                  {/* Website */}
-                  <div className="flex items-center gap-1.5">
-                    <div className="w-5 h-5 flex items-center justify-center">
-                      <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="stroke-white stroke-2">
-                        <circle cx="9" cy="9" r="7" />
-                        <ellipse cx="9" cy="9" rx="2.5" ry="7" />
-                        <line x1="2" y1="9" x2="16" y2="9" />
-                      </svg>
-                    </div>
-                    <span className="text-xs">bpbd.banjarmasinkota.go.id</span>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1153,21 +637,16 @@ const WeatherForecast = () => {
         <div className="mt-6 bg-white rounded-lg p-6 shadow-lg max-w-2xl mx-auto">
           <h3 className="font-bold text-gray-800 mb-3">📋 Cara Penggunaan</h3>
           <ul className="text-sm text-gray-700 space-y-2">
-            <li>✅ <strong>Upload Background:</strong> Klik "Upload Gambar" untuk background custom</li>
-            <li>✅ <strong>Upload Logo:</strong> Klik kotak logo untuk upload gambar (auto-resize, tidak harus bulat)</li>
-            <li>✅ <strong>Tambah/Hapus Logo:</strong> Gunakan tombol "+ Tambah Logo" atau "×" untuk mengelola logo</li>
-            <li>✅ <strong>Overlay Gradient:</strong> Centang untuk tambah gradient warna dari atas ke bawah (transparan)</li>
-            <li>✅ <strong>Refresh Data:</strong> Klik "Refresh Data" untuk update cuaca terbaru dari BMKG</li>
-            <li>✅ <strong>Download:</strong> Klik "Download" untuk simpan gambar (1080x1348px)</li>
-            <li>✅ Logo otomatis resize proporsional (tidak terdistorsi), bisa logo bulat atau kotak</li>
+            <li>✅ <strong>Upload Background:</strong> Klik "Upload" untuk background custom</li>
+            <li>✅ <strong>Logo:</strong> Tambah, hapus, ganti (klik logo), dan seret ⠿ untuk mengubah urutan</li>
+            <li>✅ <strong>Teks:</strong> Semua teks, kontak, dan footer bisa diubah isi, warna, dan ukuran fontnya</li>
+            <li>✅ <strong>Overlay:</strong> Pilih solid / gradien linear / radial, arah, warna, dan opacity</li>
+            <li>✅ <strong>Refresh Data:</strong> Klik "Refresh" untuk update cuaca terbaru dari BMKG</li>
+            <li>✅ <strong>Download:</strong> Hasil sama dengan pratinjau, lebar 1080px (tinggi min. 1348px)</li>
           </ul>
         </div>
       </div>
-
-      {/* Hidden canvas for download */}
-      <canvas ref={canvasRef} style={{ display: 'none' }} />
-    </div >
+    </div>
   );
 };
-
 export default WeatherForecast;
