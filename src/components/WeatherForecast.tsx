@@ -20,7 +20,8 @@ interface ForecastItem {
   hu: number;
   ws: number;
   wd_to: string;
-  vs_text: string;
+  vs?: number | null;
+  vs_text?: string | null;
   [key: string]: unknown;
 }
 
@@ -30,6 +31,10 @@ interface WeatherData {
   }>;
 }
 
+const BMKG_URL = 'https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=63.71.05.1001';
+const HOUR_MS = 3600 * 1000;
+const DAY_MS = 24 * HOUR_MS;
+const WITA_MS = 8 * HOUR_MS;
 const PREVIEW_W = 672;
 const PREVIEW_MIN_H = 838; // 1080 x 1348 setelah diskalakan
 const OUTPUT_W = 1080;
@@ -64,7 +69,7 @@ const WeatherForecast = () => {
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
   const [loading, setLoading] = useState(true);
   const [backgroundImage, setBackgroundImage] = useState<string | null>(null);
-  const [gridSize, setGridSize] = useState(46);
+  const [gridSize, setGridSize] = useState(50);
   const [showGrid, setShowGrid] = useState(true);
   const [logos, setLogos] = useState<LogoItem[]>(() => makeLogos(DEFAULT_LOGOS));
   const [logoSize, setLogoSize] = useState(50);
@@ -76,15 +81,42 @@ const WeatherForecast = () => {
   const [isDownloading, setIsDownloading] = useState(false);
   const previewRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
+
   const fetchWeatherData = useCallback(async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    setLoading(true);
+    setFetchError(null);
     try {
-      setLoading(true);
-      const response = await fetch('https://api.bmkg.go.id/publik/prakiraan-cuaca?adm4=63.71.05.1001');
-      const data = await response.json();
+      // cache: 'no-store' → tombol Refresh benar-benar mengambil data baru
+      // (respons BMKG membawa Cache-Control max-age=3600, browser bisa menyajikan data lama hingga 1 jam)
+      const response = await fetch(BMKG_URL, { signal: controller.signal, cache: 'no-store' });
+      if (!response.ok) {
+        throw new Error(
+          response.status === 429
+            ? 'Batas permintaan BMKG terlampaui (maks. 60 permintaan/menit per IP). Tunggu sebentar lalu klik Refresh.'
+            : `Server BMKG merespons HTTP ${response.status}. Coba lagi beberapa saat.`
+        );
+      }
+      const data = (await response.json()) as WeatherData;
+      if (!data?.data?.[0]?.cuaca?.flat().length) {
+        throw new Error('Data BMKG kosong atau formatnya berubah (data[0].cuaca tidak ditemukan).');
+      }
       setWeatherData(data);
-      setLoading(false);
+      setLastFetched(new Date());
     } catch (error) {
       console.error('Error fetching weather data:', error);
+      const msg =
+        error instanceof DOMException && error.name === 'AbortError'
+          ? 'Permintaan ke BMKG melebihi 15 detik (timeout). Periksa koneksi lalu klik Refresh.'
+          : error instanceof TypeError
+            ? 'Tidak dapat menghubungi api.bmkg.go.id (koneksi terputus, diblokir jaringan/ekstensi browser, atau server BMKG sedang gangguan).'
+            : error instanceof Error ? error.message : String(error);
+      setFetchError(msg);
+    } finally {
+      clearTimeout(timer);
       setLoading(false);
     }
   }, []);
@@ -129,9 +161,13 @@ const WeatherForecast = () => {
   const formatDateIndonesian = (dateStr: string | number | Date) => {
     const months = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
     const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-    const date = new Date(dateStr);
-    return `${days[date.getDay()].toUpperCase()}, ${date.getDate()} ${months[date.getMonth()].toUpperCase()} ${date.getFullYear()}`;
+    // Selalu pakai WITA (UTC+8), tidak tergantung zona waktu perangkat pengguna
+    const date = new Date(new Date(dateStr).getTime() + WITA_MS);
+    return `${days[date.getUTCDay()].toUpperCase()}, ${date.getUTCDate()} ${months[date.getUTCMonth()].toUpperCase()} ${date.getUTCFullYear()}`;
   };
+
+  const visibilityText = (f: ForecastItem) =>
+    f.vs_text || (typeof f.vs === 'number' ? (f.vs >= 1000 ? `${+(f.vs / 1000).toFixed(1)} km` : `${f.vs} m`) : '');
 
   const translateWindDirection = (direction: string) => {
     const directions: Record<string, string> = {
@@ -156,94 +192,47 @@ const WeatherForecast = () => {
     return directions[direction] || direction;
   };
 
-  const getTodayForecasts = () => {
-    if (!weatherData || !weatherData.data || !weatherData.data[0]) return [];
+  const getTodayForecasts = (): { items: ForecastItem[]; note: string | null } => {
+    const all = (weatherData?.data?.[0]?.cuaca ?? []).flat().filter((f) => f && f.datetime);
+    if (all.length === 0) return { items: [], note: null };
 
-    const allForecasts = weatherData.data[0].cuaca.flat();
-    if (allForecasts.length === 0) return [];
+    const times = all.map((f) => new Date(f.datetime).getTime());
+    const firstMs = Math.min(...times);
+    const lastMs = Math.max(...times);
+    const nowMs = Date.now();
+    // Tengah malam WITA hari ini, dalam UTC
+    const todayStart = Math.floor((nowMs + WITA_MS) / DAY_MS) * DAY_MS - WITA_MS;
 
-    // Patokan dari data API pertama
-    const firstForecast = new Date(allForecasts[0].datetime);
+    const build = (dayStart: number, skipPast: boolean) => {
+      const result: ForecastItem[] = [];
+      for (let h = startHour; h < 24 && result.length < 6; h += hourInterval) {
+        const target = dayStart + h * HOUR_MS;
+        // Jam yang sudah lewat (sama seperti sebelumnya: jam < jam sekarang)
+        if (skipPast && target + HOUR_MS <= nowMs) continue;
+        // Jangan "mengarang" data di luar rentang yang tersedia dari BMKG (data per 3 jam)
+        if (target < firstMs - 1.5 * HOUR_MS || target > lastMs + 1.5 * HOUR_MS) continue;
 
-    // Konversi ke WITA (UTC+8) agar sesuai dengan UI yang diminta (Banjarmasin)
-    const witaOffset = 8 * 60 * 60 * 1000;
-    const baseWitaDate = new Date(firstForecast.getTime() + witaOffset);
-
-    // Setel jam di zona WITA sesuai dengan startHour yang diinput (mengabaikan menit/detik)
-    baseWitaDate.setUTCHours(startHour, 0, 0, 0);
-
-    // Kembalikan menjadi waktu UTC yang sesungguhnya untuk patokan loop interval
-    let currentTargetUtc = new Date(baseWitaDate.getTime() - witaOffset);
-
-    // Berhenti saat berganti hari di zona waktu lokal (WITA)
-    const startDayWita = baseWitaDate.getUTCDate();
-
-    // Waktu realtime saat ini di WITA untuk mengecek jam yang terlewat
-    const nowUtc = new Date();
-    const nowWita = new Date(nowUtc.getTime() + witaOffset);
-    const todayWitaYear = nowWita.getUTCFullYear();
-    const todayWitaMonth = nowWita.getUTCMonth();
-    const todayWitaDate = nowWita.getUTCDate();
-    const currentWitaHour = nowWita.getUTCHours();
-
-    const result = [];
-
-    // Loop maksimal 6 kali mengisi data, atau berhenti setelah 24 kali cek
-    let iterations = 0;
-    while (result.length < 6 && iterations < 24) {
-      iterations++;
-
-      // Cek apakah tanggal target saat ini sudah beda hari dalam waktu WITA
-      const checkWitaDate = new Date(currentTargetUtc.getTime() + witaOffset);
-      if (checkWitaDate.getUTCDate() !== startDayWita) {
-        break; // Stop loop karena tidak boleh melewati 23:59 WITA di hari ini
-      }
-
-      // Mengecek apakah jam target saat ini sudah lewat dibandingkan waktu riil sekarang (WITA)
-      let isPastHour = false;
-      if (
-        checkWitaDate.getUTCFullYear() === todayWitaYear &&
-        checkWitaDate.getUTCMonth() === todayWitaMonth &&
-        checkWitaDate.getUTCDate() === todayWitaDate &&
-        checkWitaDate.getUTCHours() < currentWitaHour
-      ) {
-        isPastHour = true;
-      }
-
-      // Jika waktu sudah terlewat, lewati dan lompat ke interval berikutnya
-      if (isPastHour) {
-        currentTargetUtc = new Date(currentTargetUtc.getTime() + hourInterval * 60 * 60 * 1000);
-        continue;
-      }
-
-      // Cari set data prakiraan yang jam-nya paling mendekati target yang dibuat (interpolation proxy)
-      let closestForecast: ForecastItem | null = null;
-      let minDiff = Infinity;
-
-      allForecasts.forEach((f: ForecastItem) => {
-        const fDate = new Date(f.datetime);
-        const diff = Math.abs(fDate.getTime() - currentTargetUtc.getTime());
-        if (diff < minDiff) {
-          minDiff = diff;
-          closestForecast = f;
-        }
-      });
-
-      const found: ForecastItem | null = closestForecast;
-      if (found) {
-        result.push({
-          ...(found as ForecastItem),
-          // Manipulasi original datetime dari API menggunakan jam target buatan kita yang sudah sesuai dengan start dan interval 
-          datetime: currentTargetUtc.toISOString(),
-          local_datetime: currentTargetUtc.toISOString(), // jaga-jaga apabila dipakai di fungsi lain
+        let closest = all[0];
+        let minDiff = Infinity;
+        all.forEach((f, i) => {
+          const diff = Math.abs(times[i] - target);
+          if (diff < minDiff) { minDiff = diff; closest = f; }
         });
+        const iso = new Date(target).toISOString();
+        result.push({ ...closest, datetime: iso, local_datetime: iso });
       }
+      return result;
+    };
 
-      // Increment jam target sesuai dengan interval yang ditentukan (1 - 6 jam)
-      currentTargetUtc = new Date(currentTargetUtc.getTime() + hourInterval * 60 * 60 * 1000);
+    const today = build(todayStart, true);
+    if (today.length) return { items: today, note: null };
+
+    // Semua jam pilihan hari ini sudah lewat (mis. dibuka malam hari) → tampilkan besok
+    const tomorrow = build(todayStart + DAY_MS, false);
+    if (tomorrow.length) {
+      return { items: tomorrow, note: 'Jam yang dipilih untuk hari ini sudah lewat, jadi yang ditampilkan adalah prakiraan BESOK. Ubah "Jam Mulai" bila perlu.' };
     }
-
-    return result;
+    return { items: [], note: 'Tidak ada data BMKG untuk jam yang dipilih. Ubah "Jam Mulai" atau interval.' };
   };
 
   const downloadImage = async () => {
@@ -271,7 +260,7 @@ const WeatherForecast = () => {
     }
   };
 
-  if (loading) {
+  if (loading && !weatherData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
         <div className="text-center">
@@ -282,7 +271,19 @@ const WeatherForecast = () => {
     );
   }
 
-  const forecasts = getTodayForecasts();
+  if (!weatherData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center p-4">
+        <div className="text-center p-6 bg-white rounded-xl shadow-lg max-w-md">
+          <p className="text-red-600 font-bold mb-2">Gagal memuat data cuaca BMKG.</p>
+          <p className="text-sm text-gray-600 mb-4">{fetchError}</p>
+          <button onClick={fetchWeatherData} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Coba Lagi</button>
+        </div>
+      </div>
+    );
+  }
+
+  const { items: forecasts, note: forecastNote } = getTodayForecasts();
   const firstForecastDate = forecasts[0]?.local_datetime || new Date().toISOString();
 
   return (
@@ -323,10 +324,11 @@ const WeatherForecast = () => {
               </button>
               <button
                 onClick={fetchWeatherData}
-                className="flex-1 sm:flex-none flex justify-center items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
+                disabled={loading}
+                className="flex-1 sm:flex-none flex justify-center items-center gap-1 sm:gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-lg transition-colors text-xs sm:text-sm font-medium"
               >
-                <RefreshCw className="w-4 h-4 sm:w-5 sm:h-5" />
-                Refresh
+                <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${loading ? 'animate-spin' : ''}`} />
+                {loading ? 'Memuat...' : 'Refresh'}
               </button>
               <button
                 onClick={downloadImage}
@@ -338,6 +340,20 @@ const WeatherForecast = () => {
               </button>
             </div>
           </div>
+
+          {/* Status data BMKG */}
+          <div className="mt-3 text-xs text-gray-500">
+            {lastFetched && <>Data BMKG diambil pukul {lastFetched.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' })} WITA</>}
+            {weatherData?.data?.[0]?.cuaca?.[0]?.[0]?.analysis_date ? <> · analisis BMKG {String(weatherData.data[0].cuaca[0][0].analysis_date).replace('T', ' ')} UTC</> : null}
+          </div>
+          {fetchError && (
+            <div className="mt-2 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+              ⚠️ {fetchError} {weatherData && <span className="text-red-600">Pratinjau masih memakai data terakhir yang berhasil diambil.</span>}
+            </div>
+          )}
+          {forecastNote && (
+            <div className="mt-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">ℹ️ {forecastNote}</div>
+          )}
 
           {/* Grid Settings */}
           {backgroundImage && (
@@ -559,7 +575,7 @@ const WeatherForecast = () => {
                             </div>
                             <div className="flex items-center justify-between px-2">
                               <span>🧭 {translateWindDirection(forecast.wd_to)}</span>
-                              <span>👁️ {forecast.vs_text}</span>
+                              {visibilityText(forecast) && <span>👁️ {visibilityText(forecast)}</span>}
                             </div>
                           </div>
                         </div>
