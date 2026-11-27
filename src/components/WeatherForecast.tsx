@@ -260,29 +260,7 @@ const WeatherForecast = () => {
     }
   };
 
-  if (loading && !weatherData) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
-          <p className="text-gray-700 font-semibold">Memuat data cuaca...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!weatherData) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-100 to-blue-200 flex items-center justify-center p-4">
-        <div className="text-center p-6 bg-white rounded-xl shadow-lg max-w-md">
-          <p className="text-red-600 font-bold mb-2">Gagal memuat data cuaca BMKG.</p>
-          <p className="text-sm text-gray-600 mb-4">{fetchError}</p>
-          <button onClick={fetchWeatherData} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Coba Lagi</button>
-        </div>
-      </div>
-    );
-  }
-
+  // Halaman selalu dirender (navigasi tetap bisa dipakai) walau data BMKG gagal dimuat
   const { items: forecasts, note: forecastNote } = getTodayForecasts();
   const firstForecastDate = forecasts[0]?.local_datetime || new Date().toISOString();
 
@@ -343,12 +321,17 @@ const WeatherForecast = () => {
 
           {/* Status data BMKG */}
           <div className="mt-3 text-xs text-gray-500">
+            {loading && <span className="inline-flex items-center gap-1 text-blue-600 mr-2"><RefreshCw className="w-3 h-3 animate-spin" /> Memuat data BMKG...</span>}
+            {!loading && !weatherData && !fetchError && <>Belum ada data BMKG.</>}
             {lastFetched && <>Data BMKG diambil pukul {lastFetched.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Makassar' })} WITA</>}
             {weatherData?.data?.[0]?.cuaca?.[0]?.[0]?.analysis_date ? <> · analisis BMKG {String(weatherData.data[0].cuaca[0][0].analysis_date).replace('T', ' ')} UTC</> : null}
           </div>
           {fetchError && (
             <div className="mt-2 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
-              ⚠️ {fetchError} {weatherData && <span className="text-red-600">Pratinjau masih memakai data terakhir yang berhasil diambil.</span>}
+              ⚠️ {fetchError}{' '}
+              {weatherData
+                ? <span>Pratinjau masih memakai data terakhir yang berhasil diambil.</span>
+                : <span>Halaman tetap bisa dipakai tanpa data cuaca; klik <b>Refresh</b> untuk mencoba lagi.</span>}
             </div>
           )}
           {forecastNote && (
@@ -546,6 +529,11 @@ const WeatherForecast = () => {
               </div>
 
               {/* Weather Cards Grid */}
+              {forecasts.length === 0 && (
+                <div className="mx-auto mb-3 w-[90%] rounded-2xl bg-white/70 border-2 border-dashed border-white px-4 py-10 text-center text-gray-600 text-sm font-semibold">
+                  {loading ? 'Memuat data prakiraan cuaca BMKG...' : 'Data prakiraan cuaca belum tersedia.'}
+                </div>
+              )}
               <div className="flex flex-col gap-2.5 mb-3 items-center w-full">
                 {(forecasts.length === 4
                   ? [forecasts.slice(0, 2), forecasts.slice(2, 4)]

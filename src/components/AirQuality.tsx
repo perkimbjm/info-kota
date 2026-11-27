@@ -201,15 +201,30 @@ const AirQuality = () => {
   const previewRef = useRef<HTMLDivElement>(null);
   const [isDownloading, setIsDownloading] = useState(false);
 
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
   const fetchIspuData = useCallback(async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    setLoading(true);
+    setFetchError(null);
     try {
-      setLoading(true);
-      const response = await fetch('https://ispu.kemenlh.go.id/apimobile/v1/getDetail/stasiun/BANJARMASIN');
-      const data = await response.json();
+      const response = await fetch('https://ispu.kemenlh.go.id/apimobile/v1/getDetail/stasiun/BANJARMASIN', { signal: controller.signal, cache: 'no-store' });
+      if (!response.ok) throw new Error(`Server ISPU merespons HTTP ${response.status}.`);
+      const data = (await response.json()) as IspuData;
+      if (!data?.rows?.length) throw new Error('Data ISPU kosong atau formatnya berubah.');
       setIspuData(data);
-      setLoading(false);
     } catch (error) {
       console.error('Error fetching ISPU data:', error);
+      setFetchError(
+        error instanceof DOMException && error.name === 'AbortError'
+          ? 'Permintaan ke server ISPU melebihi 15 detik (timeout).'
+          : error instanceof TypeError
+            ? 'Tidak dapat menghubungi ispu.kemenlh.go.id (koneksi terputus, diblokir jaringan/ekstensi browser, atau server sedang gangguan).'
+            : error instanceof Error ? error.message : String(error)
+      );
+    } finally {
+      clearTimeout(timer);
       setLoading(false);
     }
   }, []);
@@ -264,30 +279,14 @@ const AirQuality = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-sky-100 to-sky-200 flex items-center justify-center font-sans">
-        <div className="text-center">
-          <RefreshCw className="w-12 h-12 animate-spin text-sky-600 mx-auto mb-4" />
-          <p className="text-gray-700 font-semibold">Memuat data Kualitas Udara (ISPU)...</p>
-        </div>
-      </div>
-    );
-  }
-
-  const row = ispuData?.rows[0];
-  if (!row) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-sky-100 to-sky-200 flex items-center justify-center font-sans">
-        <div className="text-center p-6 bg-white rounded-xl shadow-lg">
-          <p className="text-red-500 font-bold mb-4">Gagal memuat data kualitas udara.</p>
-          <button onClick={fetchIspuData} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-            Coba Lagi
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // Halaman selalu dirender (navigasi tetap bisa dipakai) walau data ISPU gagal dimuat
+  const realRow = ispuData?.rows?.[0];
+  const noData = !realRow;
+  const row: IspuRow = realRow ?? {
+    id_stasiun: '', waktu: '', pm10: '-', pm25: '-', so2: '-', co: '-', o3: '-', no2: '-', hc: '-',
+    tipe_text: '-',
+    kategori: { nilai: '-', keterangan: 'Data ISPU belum tersedia.', color: '#94a3b8', color_text: '#ffffff' },
+  };
 
   const pm10Val = parseInt(row.pm10) || 0;
   const pm25Val = parseInt(row.pm25) || 0;
@@ -309,13 +308,15 @@ const AirQuality = () => {
   ];
 
   const dominantPollutant = pollutants.reduce((max, p) => (parseInt(p.val) || 0) > (parseInt(max.val) || 0) ? p : max, pollutants[0]);
-  const catDetails = getCategoryDetails(row.kategori.nilai);
+  const catDetails = noData
+    ? { warna: '#94a3b8', artinya: 'Data ISPU belum tersedia.', kelompokSensitif: 'Data belum tersedia.', note: 'Data kualitas udara belum tersedia. Silakan muat ulang data.', arrowIndex: -1 }
+    : getCategoryDetails(row.kategori.nilai);
   const activeColor = row.kategori.color || catDetails.warna;
   const arrowIndex = catDetails.arrowIndex;
 
   const waktuParts = (row.waktu || '').split(' ');
-  const activeDate = waktuParts[0] ? waktuParts[0].replace(/-/g, ' ') : '08 Juli 2026';
-  const activeTime = waktuParts[1] ? waktuParts[1].substring(0, 5) : '09:00';
+  const activeDate = waktuParts[0] ? waktuParts[0].replace(/-/g, ' ') : '-';
+  const activeTime = waktuParts[1] ? waktuParts[1].substring(0, 5) : '--:--';
 
   const categoriesList = [
     { name: 'BERBAHAYA', color: '#000000', textColor: '#FFFFFF' },
@@ -395,6 +396,19 @@ const AirQuality = () => {
             </div>
           </div>
 
+
+          {/* Status data ISPU */}
+          {loading && (
+            <div className="mt-3 text-xs text-blue-600 inline-flex items-center gap-1"><RefreshCw className="w-3 h-3 animate-spin" /> Memuat data ISPU...</div>
+          )}
+          {fetchError && (
+            <div className="mt-2 p-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-700">
+              ⚠️ {fetchError}{' '}
+              {ispuData
+                ? <span>Pratinjau masih memakai data terakhir yang berhasil diambil.</span>
+                : <span>Halaman tetap bisa dipakai tanpa data ISPU; klik <b>Refresh</b> untuk mencoba lagi.</span>}
+            </div>
+          )}
 
           {/* Default Background Color Picker (only when no image uploaded) */}
           {!backgroundImage && (
@@ -720,7 +734,7 @@ const AirQuality = () => {
                         {t('ispuLbl')}
                       </p>
                       <h2 className="font-black leading-none mt-1.5" style={s('ispuVal', { auto: getContrastColor(activeColor) })}>
-                        {ispuValue}
+                        {noData ? '-' : ispuValue}
                       </h2>
                     </div>
 
@@ -733,7 +747,7 @@ const AirQuality = () => {
                         className="rounded-md py-1 px-2 mt-1.5 font-extrabold tracking-wide text-center"
                         style={{ backgroundColor: 'rgba(0,0,0,0.15)', ...s('ispuMeta', { auto: getContrastColor(activeColor) }) }}
                       >
-                        {dominantPollutant.name}  |  {row.waktu}
+                        {noData ? 'Data belum tersedia' : <>{dominantPollutant.name}  |  {row.waktu}</>}
                       </div>
                     </div>
                   </div>
